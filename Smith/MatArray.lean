@@ -10,6 +10,7 @@ import Mathlib.Data.Matrix.Mul
 import Mathlib.Tactic
 import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 import Std.Tactic
+import Smith.RangeCursor
 
 set_option linter.style.cases false
 set_option linter.flexible false
@@ -661,62 +662,6 @@ open Std.Do
 
 set_option mvcgen.warning false
 
-@[grind →]
-lemma aux_cursor (i m j : ℕ) (xs : [i:m].toList.Cursor) (hj : j ∈ xs.prefix) : j < m := by
-  have haux := xs.property
-  suffices hsuf : j ∈ [i:m].toList
-  · rw [List.mem_range'] at hsuf
-    choose x hx using hsuf
-    simp at hx
-    omega
-  rw [← haux]
-  exact List.mem_append_left xs.suffix hj
-
-@[simp]
-lemma mem_range' (i m j : ℕ) : j ∈ [i:m].toList ↔ i ≤ j ∧ j < m := by
-  rw [List.mem_range']
-  simp
-  fconstructor
-  · intro h
-    choose k hk hk2 using h
-    omega
-  · intro h
-    cases' h with h1 h2
-    use j - i
-    omega
-
-lemma aux_cursor' (i m j : ℕ) (xs : [i:m].toList.Cursor) (h : 0 < xs.suffix.length) : j ∈ xs.prefix ↔ i ≤ j ∧ j < xs.current := by
-  have haux := xs.property
-  fconstructor
-  · intro h2
-    fconstructor
-    · suffices hsuf: j ∈ [i:m].toList
-      · simp at hsuf
-        exact hsuf.1
-      rw [← haux]
-      simp
-      left
-      exact h2
-    · induction' m with m hm
-      · have haux2 : j ∈ [i:0].toList
-        · rw [← haux]
-          simp
-          left
-          exact h2
-        simp at haux2
-      ·
-
-
-@[grind →]
-lemma aux_cursor' (i m j : ℕ) (xs : [i:m].toList.Cursor) (hj : j ∈ xs.suffix) : j < m := by
-  have haux := xs.property
-  suffices hsuf : j ∈ [i:m].toList
-  · rw [List.mem_range'] at hsuf
-    choose x hx using hsuf
-    simp at hx
-    omega
-  rw [← haux]
-  exact List.mem_append_right xs.prefix hj
 
 def first_nonzero_i_row (A : Mat n m R) (i : ℕ) : Option ℕ := Id.run do
   if hi : n ≤ i ∨ m ≤ i then return none else
@@ -769,7 +714,7 @@ lemma first_nonzero_i_row_prop_1 (A : Mat n m R) (i b : ℕ) (h : first_nonzero_
   with simp_all
   · grind
 
-lemma first_nonzero_i_row_prop_2 (A : Mat n m R) (i b : ℕ) (h : first_nonzero_i_row A i = some b) :
+lemma first_nonzero_i_row_prop_2 (A : Mat n m R) (i b c: ℕ) (h : first_nonzero_i_row A i = some b) :
     ∀ (h : c < b), i ≤ c → Aget A ⟨i,by grind⟩ ⟨c,by grind⟩ = 0 := by
   have him := first_nonzero_i_row_inter A i b h
   suffices hsuf : first_nonzero_i_row A i = some b → ∀ (h : c < b), i ≤ c → Aget A ⟨i,by grind⟩ ⟨c,by grind⟩ = 0
@@ -779,7 +724,7 @@ lemma first_nonzero_i_row_prop_2 (A : Mat n m R) (i b : ℕ) (h : first_nonzero_
   mvcgen invariants
   · Invariant.withEarlyReturn (onReturn := fun r letMuts =>
       ⌜r = some b → ∀ (h : c < b), i ≤ c → Aget A ⟨i, by grind⟩ ⟨c, by grind⟩ = 0⌝) (onContinue :=
-      fun xs letMuts => ⌜(hxs : 0 < xs.suffix.length) →  ∀ d, (hd : d < (xs.current hxs)) →  Aget A ⟨i, by grind⟩ ⟨d,by grind⟩ = 0⌝)
+      fun xs letMuts => ⌜(hxs : 0 < xs.suffix.length) →  ∀ d, (hd : d < (xs.current hxs)) → (i ≤ d) →  Aget A ⟨i, by grind⟩ ⟨d,by grind⟩ = 0⌝)
   with mleave
   · simp
   · expose_names
@@ -788,33 +733,40 @@ lemma first_nonzero_i_row_prop_2 (A : Mat n m R) (i b : ℕ) (h : first_nonzero_
     · cases' h4 with h4 h5
       simp at h5
       simp
-      intro hcur hcb hic
+      intro hcur
       cases hcur
       apply h5
-      exact hcb
-    · simp
-      intro hcur hcb hic
-      choose a ha using h4
-      grind
+    · simp_all
   · simp_all
     expose_names
     intro hxs d hd
     cases' h_4 with h4 h5
     · by_cases hcas : d = cur
       · cases hcas
+        intro
         exact h_3
       · apply h5
-        change d < cur
-        have haix : d < suff[0]'(hxs) := hd
-        have haux : cur + 1 = suff[0]'(hxs)
-        · have h11 : suff[0]'(hxs) ∈ [i:m].toList
-          · rw [h_2]
-            simp
-          have h12 : cur ∈ [i:m].toList
-          · rw [h_2]
-            simp
-          rw [List.mem_range'] at h11 h12
-          simp at h11 h12
+        have hcur' : cur ∈ cur :: suff := by simp
+        rw [Std.Range.toList] at h_2
+        simp at h_2
+        rw  [RangeCursor.mem_suff i _ cur pref  (cur :: suff) h_2.symm ] at hcur'
+        rw [List.append_cons] at h_2
+        have hcur : cur ∈ pref ++ [cur] := by simp
+        rw [RangeCursor.mem_preff _ _ _ _ _ h_2.symm] at hcur
+        simp at hcur
+        cases' hcur with hcur1 hcur2
+        cases' hcur' with hcur3 hcur4
+        have hsuf0 := RangeCursor.suffix0 i (m - i) _ _ h_2.symm hxs
+        simp at hsuf0
+        omega
+  · simp_all
+  · simp
+  · simp_all
+
+
+
+
+
 
 
 

@@ -82,6 +82,35 @@ lemma mem_preff (P S : List ℕ ) (hPN : P ++ S = (range' i m)) : k ∈ P ↔ i 
         simp [hPS]
       exact hind
 
+
+lemma preff_range (P S : List ℕ) (hPN : P ++ S = (range' i m)) : P = range' i P.length := by
+  revert i m
+  induction' P with x P hP
+  · simp
+  · intro i m hPN
+    simp at hPN
+    simp [-range_succ']
+    rw [range']
+    specialize hP (i + 1)
+    have hm0 : 0 < m
+    · by_contra hcon
+      simp at hcon
+      cases hcon
+      simp at hPN
+    simp
+    fconstructor
+    · cases' m with m
+      · grind
+      · rw [range'] at hPN
+        simp at hPN
+        exact hPN.1
+    · cases' m with m
+      · tauto
+      · rw [range'] at hPN
+        simp at hPN
+        specialize hP m hPN.2
+        exact hP
+
 lemma mem_suff (P S : List ℕ ) (hPN : P ++ S = (range' i m)) : k ∈ S ↔ i + P.length ≤ k ∧ k < i + P.length + S.length := by
   revert P
   induction' S with x S hind
@@ -95,37 +124,103 @@ lemma mem_suff (P S : List ℕ ) (hPN : P ++ S = (range' i m)) : k ∈ S ↔ i +
       have haux : (P ++ [x]) ++ S = range' i m
       · simp [hP]
       have h2 := mem_preff i m k _ _ haux
-
-
-
-
-
-
-
-  revert P S hPN
-  induction' m with m hind
-  · simp
-  · intro P S hPS
-    simp at hPS
-    by_cases hcas : S = []
-    · cases hcas
+      have h3 : k ∈ range' i m
+      · rw [← haux]
+        grind
+      simp at h3
       simp_all
       grind
-    · specialize hind P S.dropLast ?_
-      · rw [← dropLastsum P S hcas,hPS]
-        simp
-      fconstructor
-      · intro hk
-        by_cases hkS : k ∈ S.dropLast
-        · rw [hind] at hkS
-          grind
-        · have hauxkl : k = S.getLast hcas
-          · grind
-          rw [hind] at hkS
-          push_neg at hkS
+    · intro h
+      cases' h with h h2
+      have h1 : k ∈ range' i m
+      · simp_all
+        grind
+      rw [← hP] at h1
+      simp at h1
+      cases' h1 with h1 h1
+      · rw [mem_preff i m k _ _ hP] at h1
+        grind
+      grind
 
+lemma suffix0 (P S : List ℕ ) (hPN : P ++ S = (range' i m)) (h : 0 < S.length) : S[0]'(h) = i + P.length := by
+  revert i m
+  induction' P with x P hP
+  · simp_all
+  · intro i m hm
+    cases' m with m
+    · simp_all
+    · cases' i with i
+      · unfold range' at hm
+        simp_all
+        specialize hP 1
+        ring_nf
+        apply hP
+        tauto
+      · specialize hP (i + 2) m
+        simp at hP ⊢
+        ring_nf at hP ⊢
+        apply hP
+        have haux : 2 + i = (i + 1) + 1 := by ring
+        unfold range' at hm
+        simp at hm
+        grind
 
+@[grind =]
+lemma mem_pref_cursor (xs : ([i:m].toList.Cursor)) (h : 0 < xs.suffix.length) :
+    k ∈ xs.prefix ↔ i ≤ k ∧ k < xs.current h := by
+  have haux := xs.property
+  unfold Std.Range.toList at haux
+  simp at haux
+  rw [mem_preff i (m -i ) k xs.prefix xs.suffix  haux]
+  unfold Cursor.current
+  rw [suffix0 _ _ _ _ haux]
 
+@[grind =]
+lemma mem_suf_cursor  (xs : ([i:m].toList.Cursor)) (h : 0 < xs.suffix.length) :
+    k ∈ xs.suffix ↔ xs.current h ≤ k ∧ k < m  := by
+  have hPS := xs.property
+  unfold Cursor.current
+  simp [mem_suff _ _ _ _ _  hPS]
+  rw [suffix0 _ _ _ _  hPS h]
+  simp
+  intro hk
+  have haux : length (xs.prefix ++ xs.suffix) = length [i:m].toList
+  · rw [hPS]
+  simp at haux
+  omega
+
+@[grind =]
+lemma cursor_length (xs : ([i:m].toList.Cursor)) :
+    xs.prefix.length + xs.suffix.length = m - i := by
+  have haux : length (xs.prefix ++ xs.suffix) = length [i:m].toList:= by rw [xs.property]
+  simp at haux
+  exact haux
+
+@[simp]
+lemma mem_pref_cursor' (xs : ([i:m].toList.Cursor)):
+    k ∈ xs.prefix ↔ i ≤ k ∧ k < i + xs.prefix.length := by
+  have haux := xs.property
+  rw [mem_preff _ _ _ _ _ haux]
+
+@[simp]
+lemma mem_suf_cursor' (xs : ([i:m].toList.Cursor)) :
+    k ∈ xs.suffix ↔ i + xs.prefix.length ≤ k ∧ k < m := by
+  rw [mem_suff _ _ _ _ _ xs.property]
+  simp
+  grind [cursor_length]
+
+@[simp]
+lemma cursor_current (xs : ([i:m].toList.Cursor)) (h : 0 < xs.suffix.length) :
+    xs.current h = xs.suffix[0] := by
+  rfl
+
+@[grind →]
+lemma cursor_in_range (xs : ([i:m].toList.Cursor)) (h : 0 < xs.suffix.length) :
+    i ≤ xs.current h ∧ xs.current h < m := by
+  suffices hsuf : xs.current h ∈ xs.suffix
+  · rw [mem_suf_cursor']  at hsuf
+    grind
+  simp
 
 
 
