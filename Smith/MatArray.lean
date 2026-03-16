@@ -178,7 +178,10 @@ lemma first_nonzero_i_row_prop_if (A : Mat n m R) (i : ℕ) (hi : i < n) (him : 
 
 @[simp]
 lemma first_nonzero_i_row_prop_some_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ) :
-  first_nonzero_i_row A i = some b ↔  i ≤ b ∧  b < m ∧ ((hbm : b < m) →  (Aget A ⟨i, hi⟩ ⟨b, hbm⟩ ≠ 0 ∧ ∀ k, (hik : i ≤ k) → (hbk : k < b) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0)) := by
+  first_nonzero_i_row A i = some b ↔
+    i ≤ b ∧ b < m ∧
+    ((hbm : b < m) →  (Aget A ⟨i, hi⟩ ⟨b, hbm⟩ ≠ 0 ∧ ∀ k, (hik : i ≤ k) → (hbk : k < b) →
+      Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0)) := by
   fconstructor
   · grind [first_nonzero_i_row_prop_1,first_nonzero_i_row_prop_2]
   · intro h1
@@ -191,7 +194,8 @@ lemma first_nonzero_i_row_prop_some_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (
 
 @[simp]
 lemma first_nonzero_i_row_prop_none_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) :
-    first_nonzero_i_row A i = none ↔  ∀ k, (hik : i ≤ k) →  (hkm : k < m) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0 := by
+    first_nonzero_i_row A i = none ↔
+      ∀ k, (hik : i ≤ k) →  (hkm : k < m) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0 := by
   fconstructor
   · apply first_nonzero_i_row_prop_3 _ _ _ him
   · intro h
@@ -253,17 +257,20 @@ lemma first_nonzero_i_col_prop_1 (A : Mat n m R) (i b : ℕ) (h : first_nonzero_
   with simp_all
   · grind
 
-lemma first_nonzero_i_col_prop_2 (A : Mat n m R) (i b c: ℕ) (h : first_nonzero_i_col A i = some b) :
+lemma first_nonzero_i_col_prop_2 (A : Mat n m R) (i b c : ℕ)
+  (h : first_nonzero_i_col A i = some b) :
     ∀ (h : c < b), i ≤ c → Aget A ⟨c,by grind⟩ ⟨i,by grind⟩ = 0 := by
   have him := first_nonzero_i_col_inter A i b h
-  suffices hsuf : first_nonzero_i_col A i = some b → ∀ (h : c < b), i ≤ c → Aget A ⟨c,by grind⟩ ⟨i,by grind⟩ = 0
+  suffices hsuf : first_nonzero_i_col A i = some b →
+    ∀ (h : c < b), i ≤ c → Aget A ⟨c,by grind⟩ ⟨i,by grind⟩ = 0
   · apply hsuf h
   generalize hA : first_nonzero_i_col A i = res
   apply Id.of_wp_run_eq hA
   mvcgen invariants
   · Invariant.withEarlyReturn (onReturn := fun r letMuts =>
       ⌜r = some b → ∀ (h : c < b), i ≤ c → Aget A ⟨c, by grind⟩ ⟨i, by grind⟩ = 0⌝) (onContinue :=
-      fun xs letMuts => ⌜(hxs : 0 < xs.suffix.length) →  ∀ d, (hd : d < (xs.current hxs)) → (i ≤ d) →  Aget A ⟨d, by grind⟩ ⟨i,by grind⟩ = 0⌝)
+      fun xs letMuts => ⌜(hxs : 0 < xs.suffix.length) →  ∀ d, (hd : d < (xs.current hxs)) →
+        (i ≤ d) →  Aget A ⟨d, by grind⟩ ⟨i,by grind⟩ = 0⌝)
   with mleave
   · simp
   · expose_names
@@ -335,6 +342,59 @@ lemma first_nonzero_i_col_prop_3 (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i
     choose k  hk hk2 using h_2
     grind
 
+
+lemma first_nonzero_i_col_prop_if (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ)
+  (hbi : i ≤ b) (hbm : b < n)
+  (h1 : Aget A ⟨b, hbm⟩ ⟨i,him⟩ ≠ 0)
+  (h2 : ∀ k, (hik : i ≤ k) → (hbk : k < b) → Aget A ⟨k, by grind⟩ ⟨i, him⟩ = 0) :
+    first_nonzero_i_col A i = some b := by
+  by_cases hcas : first_nonzero_i_col A i = none
+  · grind [first_nonzero_i_col_prop_3]
+  · have haux : ∃ k, first_nonzero_i_col A i = some k
+    · exact Option.ne_none_iff_exists'.mp hcas
+    choose k hk using haux
+    specialize h2 k (by grind)
+    have haux := first_nonzero_i_col_prop_1 _ _ _ hk
+    rw [hk]
+    simp
+    suffices hsuf : ¬ k < b ∧ ¬ b < k
+    · omega
+    fconstructor
+    · grind
+    · intro hbk
+      have haux2 := first_nonzero_i_col_prop_2 A i k b hk hbk hbi
+      grind
+
+@[simp]
+lemma first_nonzero_i_col_prop_some_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ) :
+  first_nonzero_i_col A i = some b ↔
+    i ≤ b ∧  b < n ∧
+    ((hbm : b < n) →  (Aget A ⟨b, hbm⟩ ⟨i, him⟩ ≠ 0 ∧ ∀ k, (hik : i ≤ k) → (hbk : k < b) →
+      Aget A ⟨k, by grind⟩  ⟨i, him⟩ = 0)) := by
+  fconstructor
+  · grind [first_nonzero_i_col_prop_1,first_nonzero_i_col_prop_2]
+  · intro h1
+    simp at h1
+    rcases h1 with ⟨h1,h2,h3⟩
+    simp [h2] at h3
+    cases' h3 with h3 h4
+    apply first_nonzero_i_col_prop_if
+    all_goals assumption
+
+@[simp]
+lemma first_nonzero_i_col_prop_none_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) :
+    first_nonzero_i_col A i = none ↔
+     ∀ k, (hik : i ≤ k) →  (hkm : k < n) → Aget A ⟨k,hkm⟩ ⟨i,him⟩ = 0 := by
+  fconstructor
+  · grind [first_nonzero_i_col_prop_3]
+  · intro h
+    by_contra hneg
+    have haux : ∃ b, first_nonzero_i_col A i = some b
+    · rw [← @Option.ne_none_iff_exists']
+      exact hneg
+    choose b hb using haux
+    grind [first_nonzero_i_col_prop_1]
+
 open EuclideanDomain
 
 def xgcdcompu (a b : R) : R := b / (gcd a b)
@@ -361,10 +421,9 @@ lemma def_xgcdcompv (a b : R) : a = -(xgcdcompv a b) * (gcd a b) := by
     · nth_rewrite 1 [hc]
       ring
     rw [haux2,EuclideanDomain.mul_div_assoc,EuclideanDomain.div_self]
-    simp
-    · exact hc
-    · simp [EuclideanDomain.gcd_eq_zero_iff]
-      grind
+    · simp only [mul_one, neg_neg]
+      exact hc
+    · grind [EuclideanDomain.gcd_eq_zero_iff]
     · simp
 
 lemma xgcdcompzero (a b : R) : (xgcdcompu a b) * a + (xgcdcompv a b) * b = 0 := by
@@ -385,9 +444,10 @@ lemma xgcdcompzero (a b : R) : (xgcdcompu a b) * a + (xgcdcompv a b) * b = 0 := 
       have haux : ((-a )/ (gcd a b)) * b = - ((a / gcd a b) * b)
       · nth_rewrite 1 3 [hx]
         rw [← mul_neg,mul_comm _ (-x),EuclideanDomain.mul_div_assoc]
-        rw [neg_mul,neg_mul]
-        rw [mul_comm _ x,EuclideanDomain.mul_div_assoc]
-        all_goals simp
+        · rw [neg_mul,neg_mul]
+          rw [mul_comm _ x,EuclideanDomain.mul_div_assoc]
+          simp
+        · simp
       rw [haux,ha,hb,hy]
       nth_rewrite 1 [hx]
       ring
