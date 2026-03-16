@@ -122,7 +122,7 @@ lemma first_nonzero_i_row_prop_2 (A : Mat n m R) (i b c: ℕ) (h : first_nonzero
   · simp
   · simp_all
 
-lemma first_nonzero_i_row_prop_3 (A : Mat n m R) (i : ℕ)  (hi : i < n) (him : i < m)
+lemma first_nonzero_i_row_prop_3 (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m)
     (h : first_nonzero_i_row A i = none)
   :
     ∀ d , (hdi : i ≤ d) → (hdm : d < m) → Aget A ⟨ i,hi⟩ ⟨d,hdm⟩ = 0 := by
@@ -154,6 +154,54 @@ lemma first_nonzero_i_row_prop_3 (A : Mat n m R) (i : ℕ)  (hi : i < n) (him : 
     expose_names
     choose k  hk hk2 using h_2
     grind
+
+lemma first_nonzero_i_row_prop_if (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ)
+  (hbi : i ≤ b) (hbm : b < m)
+  (h1 : Aget A ⟨i, hi⟩ ⟨b, hbm⟩ ≠ 0)
+  (h2 : ∀ k, (hik : i ≤ k) → (hbk : k < b) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0) :
+    first_nonzero_i_row A i = some b := by
+  by_cases hcas : first_nonzero_i_row A i = none
+  · grind [first_nonzero_i_row_prop_3]
+  · have haux : ∃ k, first_nonzero_i_row A i = some k
+    · exact Option.ne_none_iff_exists'.mp hcas
+    choose k hk using haux
+    specialize h2 k (by grind)
+    have haux := first_nonzero_i_row_prop_1 _ _ _ hk
+    rw [hk]
+    simp
+    suffices hsuf : ¬ k < b ∧ ¬ b < k
+    · omega
+    fconstructor
+    · grind
+    · intro hbk
+      have haux2 := first_nonzero_i_row_prop_2 A i k b hk hbk hbi
+      grind
+
+@[simp]
+lemma first_nonzero_i_row_prop_some_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ) :
+  first_nonzero_i_row A i = some b ↔  i ≤ b ∧  b < m ∧ ((hbm : b < m) →  (Aget A ⟨i, hi⟩ ⟨b, hbm⟩ ≠ 0 ∧ ∀ k, (hik : i ≤ k) → (hbk : k < b) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0)) := by
+  fconstructor
+  · grind [first_nonzero_i_row_prop_1,first_nonzero_i_row_prop_2]
+  · intro h1
+    simp at h1
+    rcases h1 with ⟨h1,h2,h3⟩
+    simp [h2] at h3
+    cases' h3 with h3 h4
+    apply first_nonzero_i_row_prop_if
+    all_goals assumption
+
+@[simp]
+lemma first_nonzero_i_row_prop_none_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) :
+    first_nonzero_i_row A i = none ↔  ∀ k, (hik : i ≤ k) →  (hkm : k < m) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0 := by
+  fconstructor
+  · apply first_nonzero_i_row_prop_3 _ _ _ him
+  · intro h
+    by_contra hneg
+    have haux : ∃ b, first_nonzero_i_row A i = some b
+    · rw [← @Option.ne_none_iff_exists']
+      exact hneg
+    choose b hb using haux
+    grind [first_nonzero_i_row_prop_1]
 
 open EuclideanDomain
 
@@ -212,6 +260,7 @@ lemma xgcdcompzero (a b : R) : (xgcdcompu a b) * a + (xgcdcompv a b) * b = 0 := 
       nth_rewrite 1 [hx]
       ring
 
+@[grind =]
 lemma xgcdcompone (a b : R) (hb : a ≠ 0) :
     gcdB a b * xgcdcompu a b - gcdA a b * xgcdcompv a b =  1 := by
   have haux := EuclideanDomain.gcd_eq_gcd_ab a b
@@ -226,6 +275,7 @@ lemma xgcdcompone (a b : R) (hb : a ≠ 0) :
   · grind
   grind
 
+@[grind =]
 lemma xgcdcompone' (a b : R) (hb : b ≠ 0) :
     gcdB a b * xgcdcompu a b - gcdA a b * xgcdcompv a b =  1 := by
   have haux := EuclideanDomain.gcd_eq_gcd_ab a b
@@ -373,43 +423,43 @@ def reduce_cols (A : Mat n m R) (i j : Fin m) (k : Fin n) : Mat n m R:=
   (xgcdcompu (Aget A k i) (Aget A k j)) (xgcdcompv (Aget A k i) (Aget A k j))
 
 @[simp]
-lemma lincom_rows_gcd (A : Mat n m R) (i j : Fin n) (k : Fin m) :
+lemma reduce_rows_gcd (A : Mat n m R) (i j : Fin n) (k : Fin m) :
     Aget (reduce_rows A i j k) i k = gcd (Aget A i k) (Aget A j k) := by
   simp [reduce_rows,def_lincom_rows,EuclideanDomain.gcd_eq_gcd_ab]
   ring
 
 @[grind =]
-lemma lincom_rows_zero (A : Mat n m R) (i j : Fin n) (k : Fin m) (hij : i ≠ j) :
+lemma reduce_rows_zero (A : Mat n m R) (i j : Fin n) (k : Fin m) (hij : i ≠ j) :
     Aget (reduce_rows A i j k) j k = 0 := by
   have haux : j ≠ i := by tauto
   simp [reduce_rows,def_lincom_rows,haux,xgcdcompzero]
 
 @[grind =]
-lemma lincom_rows_other (A : Mat n m R) (i j : Fin n) (k : Fin m) (a : Fin n) (b : Fin m)
+lemma reduce_rows_other (A : Mat n m R) (i j : Fin n) (k : Fin m) (a : Fin n) (b : Fin m)
   (hai : a ≠ i) (haj : a ≠ j) :
     Aget (reduce_rows A i j k) a b = Aget A a b := by
   simp [reduce_rows,def_lincom_rows,hai,haj]
 
 @[simp]
-lemma lincom_cols_gcd (A : Mat n m R) (i j : Fin m) (k : Fin n) :
+lemma reduce_cols_gcd (A : Mat n m R) (i j : Fin m) (k : Fin n) :
     Aget (reduce_cols A i j k) k i = gcd (Aget A k i) (Aget A k j) := by
   simp [reduce_cols,def_lincom_cols,EuclideanDomain.gcd_eq_gcd_ab]
   ring
 
 @[grind =]
-lemma lincom_cols_zero (A : Mat n m R) (i j : Fin m) (k : Fin n) (hij : i ≠ j) :
+lemma  reduce_cols_zero (A : Mat n m R) (i j : Fin m) (k : Fin n) (hij : i ≠ j) :
     Aget (reduce_cols A i j k) k j = 0 := by
   have haux : j ≠ i := by tauto
   simp [reduce_cols,def_lincom_cols,haux,xgcdcompzero]
 
 @[grind =]
-lemma lincom_cols_other (A : Mat n m R) (i j : Fin m) (k : Fin n) (a : Fin n) (b : Fin m)
+lemma reduce_cols_other (A : Mat n m R) (i j : Fin m) (k : Fin n) (a : Fin n) (b : Fin m)
   (hbi : b ≠ i) (hbj : b ≠ j) :
     Aget (reduce_cols A i j k) a b = Aget A a b := by
   simp [reduce_cols,def_lincom_cols,hbi,hbj]
 
 @[grind =]
-lemma lincom_mul (A : Mat n m R) (B : Mat m l R) (i j: Fin m) (u v x y : R) (hij : i ≠ j)
+lemma lincom_mul (A : Mat n m R) (B : Mat m l R) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) :
     (lincom_cols A i j u v x y) * (lincom_rows B i j y (-x) (-v) u) = A * B := by
   ext a b
@@ -445,6 +495,48 @@ def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j) (h :
     have haux := lincom_mul D.M D.R i j u v x y hij h
     rw [← mul_assoc,haux,mul_assoc]
     exact D.h
+
+lemma def_LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j) (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
+    Aget (LUM_lincom_cols A D i j u v x y hij h).M a b =
+      if b = i then
+        u * Aget D.M a i + v * Aget D.M a j
+      else if b = j then
+        x * Aget D.M a i + y * Aget D.M a j
+      else
+        Aget D.M a b := by
+  simp [LUM_lincom_cols,def_lincom_cols]
+
+lemma def_LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j) (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
+    Aget (LUM_lincom_rows A D i j u v x y hij h).M a b =
+      if a = i then
+        u * Aget D.M i b + v * Aget D.M j b
+      else if a = j then
+        x * Aget D.M i b + y * Aget D.M j b
+      else
+        Aget D.M a b := by
+  simp [LUM_lincom_rows,def_lincom_rows]
+
+def M : Mat 2 3 ℤ where
+  Ar := #[3,0,5,6,7,8]
+  hAr := by simp
+
+def clean_row (A: Mat n m R) (i : ℕ) (hin : i < n) : Mat n m R := Id.run do
+  match hb : first_nonzero_i_row A i with
+  | none => return A
+  | some b =>
+    let mut res := A
+    for h : k in [b + 1:m] do
+      if Aget A ⟨i,hin⟩ ⟨k,Membership.get_elem_helper h rfl⟩ = 0
+      then
+        continue
+      else
+        res := reduce_cols res ⟨b,by grind⟩ ⟨k, Membership.get_elem_helper h rfl⟩ ⟨i,hin⟩
+    return res
+
+#eval M
+#eval clean_row M 0 (by omega)
+
+
 
 variable [DecidableRel ED.r]
 
