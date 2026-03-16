@@ -122,62 +122,38 @@ lemma first_nonzero_i_row_prop_2 (A : Mat n m R) (i b c: ℕ) (h : first_nonzero
   · simp
   · simp_all
 
-
-
-
-lemma first_nonzero_i_row_prop_3 (A : Mat n m R) (i b c: ℕ)  (hi : i < n) (him : i < m) (h : first_nonzero_i_row A i = none) :
-    ∀ (h : c < m), i ≤ c → Aget A ⟨i,by grind⟩ ⟨c,by grind⟩ = 0 := by
+lemma first_nonzero_i_row_prop_3 (A : Mat n m R) (i : ℕ)  (hi : i < n) (him : i < m)
+    (h : first_nonzero_i_row A i = none)
+  :
+    ∀ d , (hdi : i ≤ d) → (hdm : d < m) → Aget A ⟨ i,hi⟩ ⟨d,hdm⟩ = 0 := by
+  revert h
   generalize hA : first_nonzero_i_row A i = res
   apply Id.of_wp_run_eq hA
   mvcgen invariants
-  · ⇓⟨xs, out⟩ => ⌜∀ j, (hj : j ∈ xs.prefix) → Aget A ⟨i, hi⟩ ⟨j, by grind [RangeCursor.mem_pref_cursor', RangeCursor.cursor_length]⟩ = 0⌝
+  · Invariant.withEarlyReturn
+      (onReturn := fun r letMuts => ⌜∃ k : Fin m, (r = some k ∧ i ≤ k ∧ Aget A ⟨i,hi⟩ k ≠ 0)⌝)
+      (onContinue :=  fun xs letMuts => ⌜∀ k, (hk : k ∈ xs.prefix) →
+        Aget A ⟨i,hi⟩ ⟨k, by grind [RangeCursor.prefix_in_range]⟩ = 0⌝)
   with mleave
-  · grind
-  · expose_names
-    simp_all
-    right
-    cases' h_4 with h4 h4
-    · cases' h4 with h4 h5
-      simp at h5
-      simp
-      intro hcur
-      cases hcur
-      apply h5
-    · simp_all
+  · omega
+  · simp_all
+    grind
   · simp_all
     expose_names
-    intro hxs d hd
-    cases' h_4 with h4 h5
-    · by_cases hcas : d = cur
-      · cases hcas
-        intro
-        exact h_3
-      · apply h5
-        have hcur' : cur ∈ cur :: suff := by simp
-        rw [Std.Range.toList] at h_2
-        simp at h_2
-        rw  [RangeCursor.mem_suff i _ cur pref  (cur :: suff) h_2.symm ] at hcur'
-        rw [List.append_cons] at h_2
-        have hcur : cur ∈ pref ++ [cur] := by simp
-        rw [RangeCursor.mem_preff _ _ _ _ _ h_2.symm] at hcur
-        simp at hcur
-        cases' hcur with hcur1 hcur2
-        cases' hcur' with hcur3 hcur4
-        have hsuf0 := RangeCursor.suffix0 i (m - i) _ _ h_2.symm hxs
-        simp at hsuf0
-        omega
+    intro k hk
+    cases' hk with hk hk
+    · apply h_3.2
+      exact hk
+    · cases hk
+      exact h_2
   · simp_all
-  · simp
+  · expose_names
+    simp [h_1] at h_2
+    grind
   · simp_all
-
-
-
-
-
-
-
-
-
+    expose_names
+    choose k  hk hk2 using h_2
+    grind
 
 open EuclideanDomain
 

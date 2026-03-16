@@ -222,6 +222,15 @@ lemma cursor_in_range (xs : ([i:m].toList.Cursor)) (h : 0 < xs.suffix.length) :
     grind
   simp
 
+@[grind →]
+lemma prefix_in_range (xs : ([i:m].toList.Cursor)) (h : k ∈ xs.prefix) :
+    i ≤ k ∧ k < m := by
+  grind [mem_pref_cursor',cursor_length]
+
+@[grind →]
+lemma suffix_in_range (xs : ([i:m].toList.Cursor)) (h : k ∈ xs.suffix) :
+    i ≤ k ∧ k < m := by
+  grind [mem_suf_cursor',cursor_length]
 
 
 end RangeCursor
