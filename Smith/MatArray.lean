@@ -12,6 +12,8 @@ open Matrix Nat Array
 
 namespace AMat
 
+open AMat
+
 variable (A : Mat n m R) (B : Mat m l R)
 variable [ED : EuclideanDomain R]
 variable [DecidableEq R]
@@ -708,25 +710,184 @@ lemma def_LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j
         Aget D.M a b := by
   simp [LUM_lincom_rows,def_lincom_rows]
 
+def clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) : Mat n m R := Id.run do
+  let mut res := A
+  for h : k in [b + 1:m] do
+    if Aget res ⟨i,hin⟩ ⟨k,Membership.get_elem_helper h rfl⟩ = 0
+    then
+      continue
+    else
+      res := reduce_cols res ⟨b,by simp at h; omega⟩ ⟨k, Membership.get_elem_helper h rfl⟩ ⟨i,hin⟩
+  return res
+
+lemma prop_clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) (hbm : b < m) :
+   ∀ k, b < k → (hkm : k < m) →  Aget (clean_row_after A i b hin) ⟨i,hin⟩ ⟨k,hkm⟩ = 0 := by
+  generalize h : clean_row_after A i b hin = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜∀ k, (hk : k ∈ xs.prefix) → Aget letMuts ⟨i,hin⟩ ⟨k,by grind⟩ = 0⌝
+  with mleave
+  · simp_all
+    expose_names
+    intro k hk
+    cases' hk with hk hk
+    · apply h_3
+      exact hk
+    · cases hk
+      exact h_2
+  · simp_all
+    expose_names
+    intro k hk
+    cases' hk with hk hk
+    · rw [reduce_cols_other]
+      · apply h_3
+        exact hk
+      · simp
+        intro hkb
+        cases hkb
+        have haux : b ∈ [b + 1:m].toList
+        · rw [h_1]
+          grind
+        simp at haux
+      · grind
+    · cases hk
+      grind [reduce_cols_zero]
+  · simp_all
+  · grind
+
+lemma prop_clean_row_after' (A : Mat n m R) (i b j : ℕ) (hin : i < n) (hjn : j < n) (hbm : b < m) :
+    ∀ k, (hkb : k < b)  →  Aget (clean_row_after A i b hin) ⟨j,hjn⟩ ⟨k,by omega⟩ = Aget A ⟨j,hjn⟩ ⟨k,by omega⟩ := by
+  generalize h : clean_row_after A i b hin = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜∀ k, (hkb : k < b)  →  Aget letMuts ⟨j,hjn⟩ ⟨k,by omega⟩ = Aget A ⟨j,hjn⟩ ⟨k,by omega⟩⌝
+  with mleave
+  · grind
+  · tauto
+
+lemma prop_clean_row_after'' (A : Mat n m R) (i b j : ℕ) (hin : i < n) (hjn : j < n) (hbm : b < m)
+  (h : ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget A ⟨j,hjn⟩ ⟨k, hkm⟩ = 0) :
+    ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget (clean_row_after A i b hin) ⟨j,hjn⟩ ⟨k,hkm⟩ = 0 := by
+  generalize h : clean_row_after A i b hin = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget letMuts ⟨j,hjn⟩ ⟨k,hkm⟩ = 0⌝
+  with mleave
+  · expose_names
+    intro k hbk hkm
+    have h4 := h_4 b (by omega) hbm
+    have h5 := h_4 cur (by grind) (by grind)
+    rw [reduce_cols,def_lincom_cols,h4,h5]
+    simp
+    intro h1 h2
+    apply h_4
+    exact hbk
+
+def clean_row (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) : Mat n m R :=
+  match h : first_nonzero_i_row A i with
+  | none => A
+  | some b => if i = b then clean_row_after A i i hin
+    else
+      swap_col (clean_row_after A i b hin) ⟨i,him⟩ ⟨b,by grind⟩
+
+@[grind =]
+lemma clean_row_none (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) (hnz : first_nonzero_i_row A i = none) :
+    clean_row A i hin him = A := by
+  unfold clean_row
+  grind
+
+@[grind →]
+lemma clean_row_some (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ ) (h : first_nonzero_i_row A i = some b) :
+    clean_row A i hin him = if i = b then clean_row_after A i i hin
+      else
+    swap_col (clean_row_after A i b hin) ⟨i,him⟩ ⟨b,by grind⟩ := by
+  unfold clean_row
+  grind
+
+lemma clean_row_prop (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) :
+    ∀ k, i < k → (hk : k < m) → Aget (clean_row A i hin him) ⟨i,hin⟩ ⟨k,hk⟩ = 0 := by
+  intro k hkn hkm
+  match hnz : (first_nonzero_i_row A i) with
+  | none => rw [clean_row_none]
+            · rw [first_nonzero_i_row_prop_none_iff] at hnz
+              · apply hnz
+                omega
+                exact hkm
+              · exact hin
+              · exact him
+            · exact hnz
+  | some b => rw [clean_row_some A i hin him b hnz]
+              rw [first_nonzero_i_row_prop_some_iff _ _ hin him _ ] at hnz
+              cases' hnz with hn1 hn2
+              cases' hn2 with hn3 hn4
+              specialize hn4 hn3
+              cases' hn4 with hn4 hn6
+              split_ifs with h1
+              · apply prop_clean_row_after
+                any_goals omega
+              · simp [def_swap_col]
+                split_ifs with h2 h3
+                · omega
+                · rw [prop_clean_row_after']
+                  any_goals aesop
+                · by_cases hcas : k < b
+                  · rw [prop_clean_row_after']
+                    apply hn6
+                    any_goals omega
+                  · apply prop_clean_row_after
+                    any_goals omega
+
+lemma clean_row_prop_other (A : Mat n m R) (i j: ℕ) (hin : i < n) (him : i < m)
+  (hjn : j < n) (hj : ∀ c, (hc : c < m) → (i ≤ c) → Aget A ⟨j,hjn⟩ ⟨c,hc⟩ = 0 ) :
+     ∀ c, (hc : c < m) → (i ≤ c) → Aget (clean_row A i hin him) ⟨j,hjn⟩ ⟨c,hc⟩ = 0 := by
+  intro c hcm hic
+  match  h : first_nonzero_i_row A i with
+  | none => grind
+  | some b => rw [clean_row_some _ _ hin him b h]
+              rw [first_nonzero_i_row_prop_some_iff] at h
+              · cases' h with hc1 hc2
+                cases' hc2 with hc2 hc3
+                · split_ifs with h1
+                  · apply prop_clean_row_after''
+                    any_goals omega
+                    intro k hk hkm
+                    apply hj
+                    exact hk
+                  · simp [def_swap_col]
+                    split_ifs with hco1 hco2
+                    · apply prop_clean_row_after''
+                      any_goals omega
+                      intro k hkb hkm
+                      apply hj
+                      any_goals omega
+                    · rw [prop_clean_row_after']
+                      · apply hj
+                        omega
+                      any_goals omega
+                    · by_cases hcasc : c < b
+                      · rw [prop_clean_row_after']
+                        any_goals omega
+                        · apply hj
+                          any_goals omega
+                      · apply prop_clean_row_after''
+                        any_goals omega
+                        intro k hk1 hk2
+                        apply hj
+                        omega
+              any_goals omega
+
+
+
+
 def M : Mat 2 3 ℤ where
   Ar := #[3,0,5,6,7,8]
   hAr := by simp
-
-def clean_row (A: Mat n m R) (i : ℕ) (hin : i < n) : Mat n m R := Id.run do
-  match hb : first_nonzero_i_row A i with
-  | none => return A
-  | some b =>
-    let mut res := A
-    for h : k in [b + 1:m] do
-      if Aget A ⟨i,hin⟩ ⟨k,Membership.get_elem_helper h rfl⟩ = 0
-      then
-        continue
-      else
-        res := reduce_cols res ⟨b,by grind⟩ ⟨k, Membership.get_elem_helper h rfl⟩ ⟨i,hin⟩
-    return res
-
 #eval M
-#eval clean_row M 0 (by omega)
+#eval clean_row (clean_row M 0  (by omega) (by omega)) 1 (by omega) (by omega)
+
 
 
 

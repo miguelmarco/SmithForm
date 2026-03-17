@@ -11,6 +11,11 @@ open List Std.Range
 lemma mem_range : k ∈ [i:m].toList ↔ i ≤ k ∧ k < m := by
   grind
 
+@[simp]
+lemma mem_range' : k ∈ [i:m] ↔ i ≤ k ∧ k < m := by
+  simp [Std.instMembershipNatRange]
+  omega
+
 @[grind =]
 lemma dropLastsum {α : Type} (P S : List α) (h : S ≠ []) :
     (P ++ S).dropLast = P ++ S.dropLast := dropLast_append_of_ne_nil h
