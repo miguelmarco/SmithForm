@@ -399,27 +399,27 @@ lemma first_nonzero_i_col_prop_none_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (
 
 open EuclideanDomain
 
-def xgcdcompu (a b : R) : R := b / (gcd a b)
+def xgcdcompu (a b : R) : R := -b / (gcd a b)
 
-def xgcdcompv (a b : R) : R := -a / (gcd a b)
+def xgcdcompv (a b : R) : R := a / (gcd a b)
 
-lemma def_xgcdcompu (a b : R) : b = (xgcdcompu a b) * (gcd a b) := by
-  by_cases hb : b = 0
-  · simp [hb,xgcdcompu]
-  · rw [xgcdcompu,mul_comm,EuclideanDomain.mul_div_cancel']
+lemma def_xgcdcompv (a b : R) : a = (xgcdcompv a b) * (gcd a b) := by
+  by_cases ha : a = 0
+  · simp [ha,xgcdcompv]
+  · rw [xgcdcompv,mul_comm,EuclideanDomain.mul_div_cancel']
     · intro h
       rw [EuclideanDomain.gcd_eq_zero_iff] at h
       grind
-    · exact EuclideanDomain.gcd_dvd_right a b
-
-lemma def_xgcdcompv (a b : R) : a = -(xgcdcompv a b) * (gcd a b) := by
-  by_cases ha : a = 0
-  · simp [ha,xgcdcompv]
-  · rw [xgcdcompv,mul_comm]
-    have haux : (gcd a b ) ∣ a
     · exact EuclideanDomain.gcd_dvd_left a b
+
+lemma def_xgcdcompu (a b : R) : b = -(xgcdcompu a b) * (gcd a b) := by
+  by_cases hb : b = 0
+  · simp [hb,xgcdcompu]
+  · rw [xgcdcompu,mul_comm]
+    have haux : (gcd a b ) ∣ b
+    · exact EuclideanDomain.gcd_dvd_right a b
     choose c hc using haux
-    have haux2 : -a = -c * gcd a b
+    have haux2 : -b = -c * gcd a b
     · nth_rewrite 1 [hc]
       ring
     rw [haux2,EuclideanDomain.mul_div_assoc,EuclideanDomain.div_self]
@@ -443,11 +443,11 @@ lemma xgcdcompzero (a b : R) : (xgcdcompu a b) * a + (xgcdcompv a b) * b = 0 := 
       have hb : b / (gcd a b) = y
       · nth_rewrite 1 [hy]
         exact mul_div_cancel_left₀ y hcas
-      have haux : ((-a )/ (gcd a b)) * b = - ((a / gcd a b) * b)
-      · nth_rewrite 1 3 [hx]
-        rw [← mul_neg,mul_comm _ (-x),EuclideanDomain.mul_div_assoc]
+      have haux : ((-b )/ (gcd a b)) * a = - ((b / gcd a b) * a)
+      · nth_rewrite 1 3 [hy]
+        rw [← mul_neg,mul_comm _ (-y),EuclideanDomain.mul_div_assoc]
         · rw [neg_mul,neg_mul]
-          rw [mul_comm _ x,EuclideanDomain.mul_div_assoc]
+          rw [mul_comm _ y,EuclideanDomain.mul_div_assoc]
           simp
         · simp
       rw [haux,ha,hb,hy]
@@ -456,7 +456,7 @@ lemma xgcdcompzero (a b : R) : (xgcdcompu a b) * a + (xgcdcompv a b) * b = 0 := 
 
 @[grind =]
 lemma xgcdcompone (a b : R) (hb : a ≠ 0) :
-    gcdB a b * xgcdcompu a b - gcdA a b * xgcdcompv a b =  1 := by
+    gcdA a b * xgcdcompv a b - gcdB a b * xgcdcompu a b =  1 := by
   have haux := EuclideanDomain.gcd_eq_gcd_ab a b
   have h1 := def_xgcdcompu a b
   have h2 := def_xgcdcompv a b
@@ -471,7 +471,7 @@ lemma xgcdcompone (a b : R) (hb : a ≠ 0) :
 
 @[grind =]
 lemma xgcdcompone' (a b : R) (hb : b ≠ 0) :
-    gcdB a b * xgcdcompu a b - gcdA a b * xgcdcompv a b =  1 := by
+    gcdA a b * xgcdcompv a b - gcdB a b * xgcdcompu a b =  1 := by
   have haux := EuclideanDomain.gcd_eq_gcd_ab a b
   have h1 := def_xgcdcompu a b
   have h2 := def_xgcdcompv a b
@@ -709,6 +709,56 @@ lemma def_LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j
       else
         Aget D.M a b := by
   simp [LUM_lincom_rows,def_lincom_rows]
+
+def LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (hij : i ≠ j)
+  (h0 : Aget D.M k i ≠ 0) :
+    LUM A :=
+  LUM_lincom_cols _ D i j (EuclideanDomain.gcdA (Aget D.M k i) (Aget D.M k j))
+    (EuclideanDomain.gcdB (Aget D.M k i) (Aget D.M k j))
+    (xgcdcompu  (Aget D.M k i) (Aget D.M k j))
+    (xgcdcompv (Aget D.M k i) (Aget D.M k j))
+    hij (xgcdcompone _ _ h0)
+
+def LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (hij : i ≠ j)
+  (h0 : Aget D.M i k ≠ 0) :
+    LUM A  :=
+  LUM_lincom_rows _ D i j (EuclideanDomain.gcdA (Aget D.M i k) (Aget D.M j k))
+    (EuclideanDomain.gcdB (Aget D.M i k) (Aget D.M j k))
+    (xgcdcompu  (Aget D.M i k) (Aget D.M j k))
+    (xgcdcompv (Aget D.M i k) (Aget D.M j k))
+    hij (xgcdcompone _ _ h0)
+
+def def_LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (b : Fin m) (hij : i ≠ j) (h0 : Aget D.M k i ≠ 0):
+    Aget (LUM_reduce_cols A D i j k hij h0).M k b =
+      if b = i then
+        EuclideanDomain.gcd (Aget D.M k i) (Aget D.M k j)
+      else if b = j then
+        0
+      else
+        Aget D.M k b := by
+  simp [LUM_reduce_cols]
+  split_ifs with h1 h2
+  · simp [def_LUM_lincom_cols,h1,EuclideanDomain.gcd_eq_gcd_ab]
+    ring
+  · simp [def_LUM_lincom_cols,h1,xgcdcompzero]
+    tauto
+  · simp [def_LUM_lincom_cols,h1]
+    tauto
+
+def def_LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (a : Fin n) (hij : i ≠ j) (h0 : Aget D.M i k ≠ 0):
+    Aget (LUM_reduce_rows A D i j k hij h0).M a k =
+      if a = i then
+        EuclideanDomain.gcd (Aget D.M i k) (Aget D.M j k)
+      else if a = j then
+        0
+      else
+        Aget D.M a k := by
+  simp [LUM_reduce_rows,def_LUM_lincom_rows]
+  split_ifs with h1 h2 h3
+  · simp [EuclideanDomain.gcd_eq_gcd_ab]
+    ring
+  · apply xgcdcompzero
+  · rfl
 
 def clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) : Mat n m R := Id.run do
   let mut res := A
