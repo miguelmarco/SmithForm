@@ -996,6 +996,124 @@ lemma LUM_clean_col_dvd' (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
     · omega
     · exact hkm
 
+/--
+If the original pivot divides the pivot of `LUM_clean_row`, then the pivot column is not changed.
+-/
+lemma LUM_clean_row_dvd_other (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (h1 : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) (hdvd : Aget D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget (LUM_clean_row _ D i hin him).M  ⟨i,hin⟩ ⟨i,him⟩)
+  (c : Fin n) :
+    Aget (LUM_clean_row _ D i hin him).M c ⟨i,him⟩ = Aget D.M c ⟨i,him⟩ := by
+  have hd : ∀ k, (hki : i ≤ k) → (hkm : k < m) → Aget D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨k,hkm⟩
+  · intro k hki hkm
+    rw [le_iff_lt_or_eq] at hki
+    cases' hki with hki hki
+    · apply dvd_trans hdvd
+      apply  LUM_clean_row_dvd'
+      · exact h1
+      · exact hki
+    · cases hki
+      exact dvd_of_eq rfl
+  have hb : first_nonzero_i_row D.M i = i
+  · grind [first_nonzero_i_row_prop_some_iff D.M i hin him i]
+  have haux :  LUM_clean_row _ D i hin him = LUM_clean_row_after _ D i i hin him h1
+  · grind
+  rw [haux]
+  generalize h : (LUM_clean_row_after _ D i i hin him h1) = result
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, res⟩ => ⌜ Aget res.D.M c ⟨i,him⟩ = Aget D.M c ⟨i,him⟩ ∧
+      (Aget res.D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨i,him⟩ ) ∧
+    ((hxs : 0 < xs.suffix.length) →
+      (Aget res.D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget res.D.M ⟨i,hin⟩ ⟨xs.current hxs, by grind⟩) ∧
+    (∀ k, (hk : k ∈ xs.suffix) →  Aget res.D.M ⟨i,hin⟩ ⟨k,by grind⟩  = Aget D.M ⟨i,hin⟩ ⟨k, by grind⟩)) ⌝
+  with mleave
+  any_goals simp_all
+  · expose_names
+    cases' h_3 with h3 h4
+    cases' h4 with h4 h5
+    cases' h5 with h5 h6
+    intro hxs
+    apply dvd_trans h4 (hd suff[0] ?_ ?_)
+    · suffices hsuf : suff[0] ∈ [i+1:m].toList
+      · simp at hsuf
+        omega
+      rw [h_1]
+      simp
+    · suffices hsuf : suff[0] ∈ [i+1:m].toList
+      · simp at hsuf
+        omega
+      rw [h_1]
+      simp
+  · expose_names
+    cases' h_3 with h3 h4
+    cases' h4 with h4 h5
+    cases' h5 with h5 h6
+    fconstructor
+    · simp [reduce_cols,def_lincom_cols]
+      rw [gcdA_dvd _ _ ?_ h5,gcdB_dvd _ _ ?_ h5]
+      · simp [h3]
+      · intro h
+        simp [h] at h4
+        tauto
+      · intro h
+        simp [h] at h4
+        tauto
+    · fconstructor
+      · apply dvd_trans _ h4
+        apply EuclideanDomain.gcd_dvd_left
+      · intro hxs
+        fconstructor
+        · simp [reduce_cols,def_lincom_cols]
+          split_ifs with hif hif2
+          · grind
+          · rw [xgcdcompu_dvd,xgcdcompv_dvd]
+            · simp
+            · intro h
+              simp [h] at h4
+              tauto
+            · apply h5
+            · intro h
+              simp [h] at h4
+              tauto
+            · apply h5
+          rw [← EuclideanDomain.gcd_eq_left] at h5
+          have h6cur := h6 cur (by simp)
+          rw [← h6cur,h5]
+          have hdsuf := hd suff[0] (by sorry) (by sorry)
+          have h6suf := h6 suff[0] (by simp)
+          rw [h6suf]
+          apply dvd_trans h4 hdsuf
+        · intro k hk
+          simp [reduce_cols,def_lincom_cols]
+          split_ifs with hif1 hif2
+          cases hif1
+          rw [gcdA_dvd,gcdB_dvd]
+          · simp
+            rw [h6]
+            simp [hk]
+          · intro h
+            simp [h] at h4
+            tauto
+          · exact h5
+          · intro h
+            simp [h] at h4
+            tauto
+          · apply h5
+          · rw [xgcdcompv_dvd,xgcdcompu_dvd]
+            simp
+            grind [RangeCursor.cur_suf0]
+            · intro h
+              simp [h] at h4
+              tauto
+            · exact h5
+            · intro h
+              simp [h] at h4
+              tauto
+            · exact h5
+          · apply h6
+            simp [hk]
+
+
 
 
 def M : Mat 2 3 ℤ where

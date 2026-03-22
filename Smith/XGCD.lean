@@ -101,6 +101,39 @@ lemma xgcdcompone' (a b : R) (hb : b ≠ 0) :
   · grind
   grind
 
+@[grind =]
+lemma gcdA_dvd (a b : R) (h : a ≠ 0) (ha : a ∣ b) : gcdA a b = 1 := by
+  unfold EuclideanDomain.gcdA
+  unfold EuclideanDomain.xgcd
+  simp [ha,EuclideanDomain.xgcdAux]
+  by_cases hcas : a = 0
+  · tauto
+  · simp [hcas]
+
+@[grind =]
+lemma gcdB_dvd (a b : R) (h : a ≠ 0) (ha : a ∣ b) : gcdB a b = 0 := by
+  unfold EuclideanDomain.gcdB
+  unfold EuclideanDomain.xgcd
+  simp [ha,EuclideanDomain.xgcdAux]
+  by_cases hcas : a = 0
+  · tauto
+  · simp [hcas]
+
+lemma xgcdcompu_dvd (a b : R) (h : a ≠ 0) (h1 : a ∣ b) : (xgcdcompu a b) * a = -b :=by
+  rw [← EuclideanDomain.gcd_eq_left] at h1
+  simp [xgcdcompu, h1]
+  rw [mul_comm,EuclideanDomain.mul_div_cancel' h]
+  rw [EuclideanDomain.gcd_eq_left] at h1
+  simp [h1]
+
+lemma xgcdcompu_dvd' (a b : R) (h1 : a ∣ b) : (xgcdcompu a b) = -b / a :=by
+  rw [← EuclideanDomain.gcd_eq_left] at h1
+  simp [xgcdcompu, h1]
+
+lemma xgcdcompv_dvd (a b : R) (h : a ≠ 0) (h1 : a ∣ b) : xgcdcompv a b = 1 :=by
+  rw [← EuclideanDomain.gcd_eq_left] at h1
+  simp [xgcdcompv, h1,h]
+
 instance inst_ED_lt : LT R where
   lt := fun a b => a ∣ b ∧ ¬ b ∣ a
 
@@ -132,7 +165,6 @@ instance : WellFounded (@inst_ED_lt R).lt := by
     rw [@Ideal.span_singleton_le_span_singleton]
     specialize hf x
     apply hf.2
-
 
 
 
