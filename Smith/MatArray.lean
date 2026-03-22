@@ -1,27 +1,25 @@
 import Smith.XGCD
 
-open AMat
-
 set_option linter.style.cases false
 set_option linter.flexible false
 
 variable {m n l : ℕ}
-variable {R : Type} [ED : EuclideanDomain R] [DecidableEq R]
+variable {R : Type} [ED : EuclideanDomain R]
 
-open Matrix Nat Array
+open Matrix Nat Array Std.Do AMat
 
 namespace AMat
 
-open AMat
-
 variable (A : Mat n m R)
 
-open Std.Do
-
 set_option mvcgen.warning false
+set_option linter.unusedTactic false
 
 open EuclideanDomain
 
+/--
+Substitute two columns in a matrix by a linear combination of them.
+-/
 def lincom_cols (A : Mat n m R) (i j : Fin m) (u v x y : R) : Mat n m R := Id.run do
   let mut res := A
   for h : k in [:n] do
@@ -32,6 +30,9 @@ def lincom_cols (A : Mat n m R) (i j : Fin m) (u v x y : R) : Mat n m R := Id.ru
     res := Aset res fk i (u * a + v * b)
   return res
 
+/--
+Entries on the result of `lincom_cols`
+-/
 lemma def_lincom_cols (A : Mat n m R) (i j : Fin m) (u v x y : R) (a : Fin n) (b : Fin m) :
     Aget (lincom_cols A i j u v x y) a b =
       if b = i then
@@ -84,6 +85,9 @@ lemma def_lincom_cols (A : Mat n m R) (i j : Fin m) (u v x y : R) (a : Fin n) (b
       any_goals grind
     · rw [h2]
 
+/--
+Substitute two rows in a matrix by a linear combination of them
+-/
 def lincom_rows (A : Mat n m R) (i j : Fin n) (u v x y : R) : Mat n m R := Id.run do
   let mut res := A
   for h : k in [:m] do
@@ -94,6 +98,9 @@ def lincom_rows (A : Mat n m R) (i j : Fin n) (u v x y : R) : Mat n m R := Id.ru
     res := Aset res i fk (u * a + v * b)
   return res
 
+/--
+Entries on the result of `lincom_rows`
+-/
 lemma def_lincom_rows (A : Mat n m R) (i j : Fin n) (u v x y : R) (a : Fin n) (b : Fin m) :
     Aget (lincom_rows A i j u v x y) a b =
       if a = i then
@@ -146,50 +153,11 @@ lemma def_lincom_rows (A : Mat n m R) (i j : Fin n) (u v x y : R) (a : Fin n) (b
       any_goals grind
     · rw [h2]
 
-def reduce_rows (A : Mat n m R) (i j : Fin n) (k : Fin m) : Mat n m R:=
-  lincom_rows A i j (gcdA (Aget A i k) (Aget A j k)) (gcdB (Aget A i k) (Aget A j k))
-  (xgcdcompu (Aget A i k) (Aget A j k)) (xgcdcompv (Aget A i k) (Aget A j k))
-
-def reduce_cols (A : Mat n m R) (i j : Fin m) (k : Fin n) : Mat n m R:=
-  lincom_cols A i j (gcdA (Aget A k i) (Aget A k j)) (gcdB (Aget A k i) (Aget A k j))
-  (xgcdcompu (Aget A k i) (Aget A k j)) (xgcdcompv (Aget A k i) (Aget A k j))
-
-@[simp]
-lemma reduce_rows_gcd (A : Mat n m R) (i j : Fin n) (k : Fin m) :
-    Aget (reduce_rows A i j k) i k = gcd (Aget A i k) (Aget A j k) := by
-  simp [reduce_rows,def_lincom_rows,EuclideanDomain.gcd_eq_gcd_ab]
-  ring
-
-@[grind =]
-lemma reduce_rows_zero (A : Mat n m R) (i j : Fin n) (k : Fin m) (hij : i ≠ j) :
-    Aget (reduce_rows A i j k) j k = 0 := by
-  have haux : j ≠ i := by tauto
-  simp [reduce_rows,def_lincom_rows,haux,xgcdcompzero]
-
-@[grind =]
-lemma reduce_rows_other (A : Mat n m R) (i j : Fin n) (k : Fin m) (a : Fin n) (b : Fin m)
-  (hai : a ≠ i) (haj : a ≠ j) :
-    Aget (reduce_rows A i j k) a b = Aget A a b := by
-  simp [reduce_rows,def_lincom_rows,hai,haj]
-
-@[simp]
-lemma reduce_cols_gcd (A : Mat n m R) (i j : Fin m) (k : Fin n) :
-    Aget (reduce_cols A i j k) k i = gcd (Aget A k i) (Aget A k j) := by
-  simp [reduce_cols,def_lincom_cols,EuclideanDomain.gcd_eq_gcd_ab]
-  ring
-
-@[grind =]
-lemma reduce_cols_zero (A : Mat n m R) (i j : Fin m) (k : Fin n) (hij : i ≠ j) :
-    Aget (reduce_cols A i j k) k j = 0 := by
-  have haux : j ≠ i := by tauto
-  simp [reduce_cols,def_lincom_cols,haux,xgcdcompzero]
-
-@[grind =]
-lemma reduce_cols_other (A : Mat n m R) (i j : Fin m) (k : Fin n) (a : Fin n) (b : Fin m)
-  (hbi : b ≠ i) (hbj : b ≠ j) :
-    Aget (reduce_cols A i j k) a b = Aget A a b := by
-  simp [reduce_cols,def_lincom_cols,hbi,hbj]
-
+/--
+If the coefficients of the linear combinations have determinant one, performing
+the linear combination on the columns on one matrix, and the inverse in the rows of the other,
+respects their product.
+-/
 @[grind =]
 lemma lincom_mul (A : Mat n m R) (B : Mat m l R) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) :
@@ -209,6 +177,9 @@ lemma lincom_mul (A : Mat n m R) (B : Mat m l R) (i j : Fin m) (u v x y : R) (hi
     cases' hii with hii hiij
     simp [hii, hiij]
 
+/--
+Apply a linear combination to two rows of a LUM, respecting the product.
+-/
 def LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) : LUM A where
   L := lincom_cols D.L i j y (-x) (-v) u
@@ -220,6 +191,9 @@ def LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j)
     rw [haux]
     exact D.h
 
+/--
+Apply a linear combination to two columns of a LUM, respecting the product.
+-/
 def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) : LUM A where
   L := D.L
@@ -230,6 +204,9 @@ def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
     rw [← mul_assoc,haux,mul_assoc]
     exact D.h
 
+/--
+The entries for the result of `LUM_lincom_cols`.
+-/
 lemma def_LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
     Aget (LUM_lincom_cols A D i j u v x y hij h).M a b =
@@ -241,6 +218,9 @@ lemma def_LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j
         Aget D.M a b := by
   simp [LUM_lincom_cols,def_lincom_cols]
 
+/--
+The entries for the result of `LUM_lincom_rows`.
+-/
 lemma def_LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
     Aget (LUM_lincom_rows A D i j u v x y hij h).M a b =
@@ -252,6 +232,79 @@ lemma def_LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j
         Aget D.M a b := by
   simp [LUM_lincom_rows,def_lincom_rows]
 
+variable [DecidableEq R]
+
+/--
+Apply `lincom_rows` with the coefficients comming from the xgcd.
+-/
+def reduce_rows (A : Mat n m R) (i j : Fin n) (k : Fin m) : Mat n m R:=
+  lincom_rows A i j (gcdA (Aget A i k) (Aget A j k)) (gcdB (Aget A i k) (Aget A j k))
+  (xgcdcompu (Aget A i k) (Aget A j k)) (xgcdcompv (Aget A i k) (Aget A j k))
+
+/--
+Apply `lincom_cols` with the coefficients comming from the xgcd.
+-/
+def reduce_cols (A : Mat n m R) (i j : Fin m) (k : Fin n) : Mat n m R:=
+  lincom_cols A i j (gcdA (Aget A k i) (Aget A k j)) (gcdB (Aget A k i) (Aget A k j))
+  (xgcdcompu (Aget A k i) (Aget A k j)) (xgcdcompv (Aget A k i) (Aget A k j))
+
+/--
+The result of `reduce_rows` in the first row is the gcd of the corresponfing entries.
+-/
+@[simp]
+lemma reduce_rows_gcd (A : Mat n m R) (i j : Fin n) (k : Fin m) :
+    Aget (reduce_rows A i j k) i k = gcd (Aget A i k) (Aget A j k) := by
+  simp [reduce_rows,def_lincom_rows,EuclideanDomain.gcd_eq_gcd_ab]
+  ring
+
+/--
+The result of `reduce_rows` in the second row is zero.
+-/
+@[grind =]
+lemma reduce_rows_zero (A : Mat n m R) (i j : Fin n) (k : Fin m) (hij : i ≠ j) :
+    Aget (reduce_rows A i j k) j k = 0 := by
+  have haux : j ≠ i := by tauto
+  simp [reduce_rows,def_lincom_rows,haux,xgcdcompzero]
+
+/--
+The result of `reduce_rows` in other rows is not changed.
+-/
+@[grind =]
+lemma reduce_rows_other (A : Mat n m R) (i j : Fin n) (k : Fin m) (a : Fin n) (b : Fin m)
+  (hai : a ≠ i) (haj : a ≠ j) :
+    Aget (reduce_rows A i j k) a b = Aget A a b := by
+  simp [reduce_rows,def_lincom_rows,hai,haj]
+
+/--
+The result of `reduce_cols` in the first column is the gcd of the corresponfing entries.
+-/
+@[simp]
+lemma reduce_cols_gcd (A : Mat n m R) (i j : Fin m) (k : Fin n) :
+    Aget (reduce_cols A i j k) k i = gcd (Aget A k i) (Aget A k j) := by
+  simp [reduce_cols,def_lincom_cols,EuclideanDomain.gcd_eq_gcd_ab]
+  ring
+
+/--
+The result of `reduce_cols` in the second column is zero.
+-/
+@[grind =]
+lemma reduce_cols_zero (A : Mat n m R) (i j : Fin m) (k : Fin n) (hij : i ≠ j) :
+    Aget (reduce_cols A i j k) k j = 0 := by
+  have haux : j ≠ i := by tauto
+  simp [reduce_cols,def_lincom_cols,haux,xgcdcompzero]
+
+/--
+The result of `reduce_cols` in other columns is not changed.
+-/
+@[grind =]
+lemma reduce_cols_other (A : Mat n m R) (i j : Fin m) (k : Fin n) (a : Fin n) (b : Fin m)
+  (hbi : b ≠ i) (hbj : b ≠ j) :
+    Aget (reduce_cols A i j k) a b = Aget A a b := by
+  simp [reduce_cols,def_lincom_cols,hbi,hbj]
+
+/--
+Apply a `reduce_cols` on a LUM.
+-/
 def LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (hij : i ≠ j)
   (h0 : Aget D.M k i ≠ 0) :
     LUM A :=
@@ -261,6 +314,9 @@ def LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (hij : i ≠ j)
     (xgcdcompv (Aget D.M k i) (Aget D.M k j))
     hij (xgcdcompone _ _ h0)
 
+/--
+Apply a `reduce_rows` on a LUM.
+-/
 def LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (hij : i ≠ j)
   (h0 : Aget D.M i k ≠ 0) :
     LUM A  :=
@@ -270,18 +326,27 @@ def LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (hij : i ≠ j)
     (xgcdcompv (Aget D.M i k) (Aget D.M j k))
     hij (xgcdcompone _ _ h0)
 
+/--
+The result of `LUM_reduce_cols` coincides with `reduce_cols`.
+-/
 @[simp]
 lemma LUM_reduce_cols_eq_M (D : LUM A) (i j : Fin m) (k : Fin n) (hij : i ≠ j)
   (h0 : Aget D.M k i ≠ 0) :
     (LUM_reduce_cols A D i j k hij h0).M = reduce_cols D.M i j k := by
   rfl
 
+/--
+The result of `LUM_reduce_rows` coincides with `reduce_rows`.
+-/
 @[simp]
 lemma LUM_reduce_rows_eq_M (D : LUM A) (i j : Fin n) (k : Fin m) (hij : i ≠ j)
   (h0 : Aget D.M i k ≠ 0) :
     (LUM_reduce_rows A D i j k hij h0).M = reduce_rows D.M i j k := by
   rfl
 
+/--
+Formula for the entries of `LUM_reduce_cols`.
+-/
 lemma def_LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (b : Fin m) (hij : i ≠ j)
   (h0 : Aget D.M k i ≠ 0) :
     Aget (LUM_reduce_cols A D i j k hij h0).M k b =
@@ -300,6 +365,9 @@ lemma def_LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (b : Fin m) (hij
   · simp [def_LUM_lincom_cols,h1]
     tauto
 
+/--
+Formula for the entries of `LUM_reduce_rows`.
+-/
 lemma def_LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (a : Fin n) (hij : i ≠ j)
   (h0 : Aget D.M i k ≠ 0) :
     Aget (LUM_reduce_rows A D i j k hij h0).M a k =
@@ -316,20 +384,9 @@ lemma def_LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (a : Fin n) (hij
   · apply xgcdcompzero
   · rfl
 
-def clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) : Mat n m R := Id.run do
-  let mut res := A
-  for h : k in [b + 1:m] do
-    if Aget res ⟨i,hin⟩ ⟨k,Membership.get_elem_helper h rfl⟩ = 0
-    then
-      continue
-    else
-      res := reduce_cols res ⟨b,by simp at h; omega⟩ ⟨k, Membership.get_elem_helper h rfl⟩ ⟨i,hin⟩
-  return res
-
 structure LUM_nonzero (i : Fin n) (j : Fin m) : Type where
   D : LUM A
   hD : Aget D.M i j ≠ 0
-
 
 /--
 Perform column operations to get zeros at the right of a given entry
@@ -375,6 +432,9 @@ def LUM_clean_col_after (D : LUM A) (i b : ℕ) (hin : i < m) (hb : b < n)
       }
   return res.D
 
+/--
+The entries at the right are made zero by `LUM_clean_row_after`.
+-/
 lemma LUM_prop_clean_row_after (D : LUM A) (i b : ℕ) (hin : i < n) (hb : b < m)
   (hb0 : Aget D.M ⟨i, hin⟩ ⟨b, hb⟩ ≠ 0) :
     ∀ k, b < k → (hkm : k < m) →  Aget (LUM_clean_row_after _ D i b hin hb hb0).M
@@ -413,6 +473,9 @@ lemma LUM_prop_clean_row_after (D : LUM A) (i b : ℕ) (hin : i < n) (hb : b < m
   · simp_all
   · grind
 
+/--
+The entries under a given one are made zero by `LUM_clean_col_after`.
+-/
 lemma LUM_prop_clean_col_after (D : LUM A) (i b : ℕ) (hin : i < m) (hb : b < n)
   (hb0 : Aget D.M ⟨b, hb⟩ ⟨i, hin⟩ ≠ 0) :
     ∀ k, b < k → (hkm : k < n) →  Aget (LUM_clean_col_after _ D i b hin hb hb0).M
@@ -451,6 +514,9 @@ lemma LUM_prop_clean_col_after (D : LUM A) (i b : ℕ) (hin : i < m) (hb : b < n
   · simp_all
   · grind
 
+/--
+The entries to the left are unchanged by `LUM_clean_row_after`.
+-/
 lemma LUM_prop_clean_row_after' (D : LUM A) (i j b : ℕ) (hin : i < n) (hjn : j < n) (hb : b < m)
   (hb0 : Aget D.M ⟨i, hin⟩ ⟨b, hb⟩ ≠ 0) :
     ∀ k, (hkb : k < b)  →  Aget (LUM_clean_row_after _ D i b hin hb hb0).M ⟨j, hjn⟩ ⟨k,by omega⟩ =
@@ -469,6 +535,9 @@ lemma LUM_prop_clean_row_after' (D : LUM A) (i j b : ℕ) (hin : i < n) (hjn : j
     any_goals grind
   · tauto
 
+/--
+The entries over the pivot are unchanged by `LUM_clean_col_after`.
+-/
 lemma LUM_prop_clean_col_after' (D : LUM A) (i j b : ℕ) (hin : i < m) (hjn : j < m) (hb : b < n)
   (hb0 : Aget D.M ⟨b, hb⟩ ⟨i, hin⟩ ≠ 0) :
     ∀ k, (hkb : k < b) → Aget (LUM_clean_col_after _ D i b hin hb hb0).M ⟨k,by omega⟩ ⟨j, hjn⟩  =
@@ -487,6 +556,10 @@ lemma LUM_prop_clean_col_after' (D : LUM A) (i j b : ℕ) (hin : i < m) (hjn : j
     any_goals grind
   · tauto
 
+/--
+If the entries in a diifferent row, at the column of the pivot or to its left, are zero,
+they remain zero after `LUM_clean_row_after`.
+-/
 lemma LUM_prop_clean_row_after'' (D : LUM A) (i j b : ℕ) (hin : i < n) (hjn : j < n) (hb : b < m)
   (hb0 : Aget D.M ⟨i, hin⟩ ⟨b, hb⟩ ≠ 0)
   (h : ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget D.M ⟨j, hjn⟩ ⟨k, hkm⟩ = 0) :
@@ -507,6 +580,10 @@ lemma LUM_prop_clean_row_after'' (D : LUM A) (i j b : ℕ) (hin : i < n) (hjn : 
     apply h_4
     exact hbk
 
+/--
+If the entries in a diifferent column, at the row of the pivot or under it, are zero,
+they remain zero after `LUM_clean_col_after`.
+-/
 lemma LUM_prop_clean_col_after'' (D : LUM A) (i j b : ℕ) (hin : i < m) (hjn : j < m) (hb : b < n)
 (hb0 : Aget D.M ⟨b, hb⟩ ⟨i, hin⟩ ≠ 0)
 (h : ∀ k, (hkb : b ≤ k) → (hkm : k < n) → Aget D.M ⟨k, hkm⟩ ⟨j, hjn⟩ = 0) :
@@ -527,81 +604,9 @@ with mleave
   apply h_4
   exact hbk
 
-lemma prop_clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) (hbm : b < m) :
-   ∀ k, b < k → (hkm : k < m) →  Aget (clean_row_after A i b hin) ⟨i,hin⟩ ⟨k,hkm⟩ = 0 := by
-  generalize h : clean_row_after A i b hin = resu
-  apply Id.of_wp_run_eq h
-  mvcgen invariants
-  · ⇓⟨xs, letMuts⟩ =>
-    ⌜∀ k, (hk : k ∈ xs.prefix) → Aget letMuts ⟨i,hin⟩ ⟨k,by grind⟩ = 0⌝
-  with mleave
-  · simp_all
-    expose_names
-    intro k hk
-    cases' hk with hk hk
-    · apply h_3
-      exact hk
-    · cases hk
-      exact h_2
-  · simp_all
-    expose_names
-    intro k hk
-    cases' hk with hk hk
-    · rw [reduce_cols_other]
-      · apply h_3
-        exact hk
-      · simp
-        intro hkb
-        cases hkb
-        have haux : b ∈ [b + 1:m].toList
-        · rw [h_1]
-          grind
-        simp at haux
-      · grind
-    · cases hk
-      grind [reduce_cols_zero]
-  · simp_all
-  · grind
-
-lemma prop_clean_row_after' (A : Mat n m R) (i b j : ℕ) (hin : i < n) (hjn : j < n) (hbm : b < m) :
-    ∀ k, (hkb : k < b)  →  Aget (clean_row_after A i b hin) ⟨j, hjn⟩ ⟨k, by omega⟩ =
-      Aget A ⟨j, hjn⟩ ⟨k,by omega⟩ := by
-  generalize h : clean_row_after A i b hin = resu
-  apply Id.of_wp_run_eq h
-  mvcgen invariants
-  · ⇓⟨xs, letMuts⟩ =>
-    ⌜∀ k, (hkb : k < b)  →  Aget letMuts ⟨j,hjn⟩ ⟨k,by omega⟩ = Aget A ⟨j,hjn⟩ ⟨k,by omega⟩⌝
-  with mleave
-  · grind
-  · tauto
-
-lemma prop_clean_row_after'' (A : Mat n m R) (i b j : ℕ) (hin : i < n) (hjn : j < n) (hbm : b < m)
-  (h : ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget A ⟨j, hjn⟩ ⟨k, hkm⟩ = 0) :
-    ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget (clean_row_after A i b hin) ⟨j, hjn⟩ ⟨k, hkm⟩ = 0 :=
-  by
-  generalize h : clean_row_after A i b hin = resu
-  apply Id.of_wp_run_eq h
-  mvcgen invariants
-  · ⇓⟨xs, letMuts⟩ =>
-    ⌜∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget letMuts ⟨j, hjn⟩ ⟨k, hkm⟩ = 0⌝
-  with mleave
-  · expose_names
-    intro k hbk hkm
-    have h4 := h_4 b (by omega) hbm
-    have h5 := h_4 cur (by grind) (by grind)
-    rw [reduce_cols,def_lincom_cols,h4,h5]
-    simp
-    intro h1 h2
-    apply h_4
-    exact hbk
-
-def clean_row (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) : Mat n m R :=
-  match h : first_nonzero_i_row A i with
-  | none => A
-  | some b => if i = b then clean_row_after A i i hin
-    else
-      swap_col (clean_row_after A i b hin) ⟨i,him⟩ ⟨b,by grind⟩
-
+/--
+Make zeros in a row at the right of the diagonal.
+-/
 def LUM_clean_row (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) : LUM A :=
   match h : first_nonzero_i_row D.M i with
   | none => D
@@ -611,6 +616,9 @@ def LUM_clean_row (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) : LUM A :=
       LUM_swap_col _ (LUM_clean_row_after _ D i b hin (by grind)
         (first_nonzero_i_row_prop_1 D.M i b h))  ⟨i,him⟩ ⟨b, by grind⟩
 
+/--
+Make zeros in a column under the diagonal.
+-/
 def LUM_clean_col (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) : LUM A :=
   match h : first_nonzero_i_col D.M i with
   | none => D
@@ -620,13 +628,9 @@ def LUM_clean_col (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) : LUM A :=
       LUM_swap_row _ (LUM_clean_col_after _ D i b him (by grind)
         (first_nonzero_i_col_prop_1 D.M i b h))  ⟨i,hin⟩ ⟨b, by grind⟩
 
-@[grind =]
-lemma clean_row_none (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m)
-  (hnz : first_nonzero_i_row A i = none) :
-    clean_row A i hin him = A := by
-  unfold clean_row
-  grind
-
+/--
+If everything is zero at the pivot or its right, `LUM_clean_row` does nothing.
+-/
 @[grind =]
 lemma LUM_clean_row_none (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   (hnz : first_nonzero_i_row D.M i = none) :
@@ -634,6 +638,9 @@ lemma LUM_clean_row_none (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   unfold LUM_clean_row
   grind
 
+/--
+If everything is zero at the pivot or under it, `LUM_clean_col` does nothing.
+-/
 @[grind =]
 lemma LUM_clean_col_none (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   (hnz : first_nonzero_i_col D.M i = none) :
@@ -641,15 +648,9 @@ lemma LUM_clean_col_none (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   unfold LUM_clean_col
   grind
 
-@[grind →]
-lemma clean_row_some (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ)
-  (h : first_nonzero_i_row A i = some b) :
-    clean_row A i hin him = if i = b then clean_row_after A i i hin
-      else
-    swap_col (clean_row_after A i b hin) ⟨i,him⟩ ⟨b,by grind⟩ := by
-  unfold clean_row
-  grind
-
+/--
+Formula for the result of `LUM_clean_row` if there are nonzero entries.
+-/
 @[grind →]
 lemma LUM_clean_row_some (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ)
   (h : first_nonzero_i_row D.M i = some b) :
@@ -665,6 +666,9 @@ lemma LUM_clean_row_some (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) (b : 
   unfold LUM_clean_row
   grind
 
+/--
+Formula for the result of `LUM_clean_col` if there are nonzero entries.
+-/
 @[grind →]
 lemma LUM_clean_col_some (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ)
   (h : first_nonzero_i_col D.M i = some b) :
@@ -680,6 +684,9 @@ lemma LUM_clean_col_some (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) (b : 
   unfold LUM_clean_col
   grind
 
+/--
+`LUM_clean_row` leaves zeros at the right of the diagonal in the given row.
+-/
 @[grind =]
 lemma LUM_clean_row_prop (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) :
     ∀ k, i < k → (hk : k < m) → Aget (LUM_clean_row A D i hin him).M ⟨i,hin⟩ ⟨k,hk⟩ = 0 := by
@@ -714,6 +721,9 @@ lemma LUM_clean_row_prop (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) :
                   · apply LUM_prop_clean_row_after
                     any_goals omega
 
+/--
+`LUM_clean_col` leaves zeros at under the diagonal in the given column.
+-/
 @[grind =]
 lemma LUM_clean_col_prop (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) :
     ∀ k, i < k → (hk : k < n) → Aget (LUM_clean_col A D i hin him).M ⟨k,hk⟩ ⟨i,him⟩ = 0 := by
@@ -748,39 +758,9 @@ lemma LUM_clean_col_prop (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) :
                   · apply LUM_prop_clean_col_after
                     any_goals omega
 
-lemma clean_row_prop (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) :
-    ∀ k, i < k → (hk : k < m) → Aget (clean_row A i hin him) ⟨i,hin⟩ ⟨k,hk⟩ = 0 := by
-  intro k hkn hkm
-  match hnz : (first_nonzero_i_row A i) with
-  | none => rw [clean_row_none]
-            · rw [first_nonzero_i_row_prop_none_iff] at hnz
-              · apply hnz
-                any_goals omega
-              · exact hin
-              · exact him
-            · exact hnz
-  | some b => rw [clean_row_some A i hin him b hnz]
-              rw [first_nonzero_i_row_prop_some_iff _ _ hin him _ ] at hnz
-              cases' hnz with hn1 hn2
-              cases' hn2 with hn3 hn4
-              specialize hn4 hn3
-              cases' hn4 with hn4 hn6
-              split_ifs with h1
-              · apply prop_clean_row_after
-                any_goals omega
-              · simp [def_swap_col]
-                split_ifs with h2 h3
-                · omega
-                · rw [prop_clean_row_after']
-                  any_goals aesop
-                · by_cases hcas : k < b
-                  · rw [prop_clean_row_after']
-                    · apply hn6
-                      any_goals omega
-                    any_goals omega
-                  · apply prop_clean_row_after
-                    any_goals omega
-
+/--
+If there are zeros in another row, there are still zeros after `LUM_clean_row`.
+-/
 lemma LUM_clean_row_prop_other (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   (hjn : j < n) (hj : ∀ c, (hc : c < m) → (i ≤ c) → Aget D.M ⟨j, hjn⟩ ⟨c, hc⟩ = 0) :
     ∀ c, (hc : c < m) → (i ≤ c) → Aget (LUM_clean_row _ D i hin him).M ⟨j,hjn⟩ ⟨c,hc⟩ = 0 := by
@@ -820,6 +800,9 @@ lemma LUM_clean_row_prop_other (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
                         omega
               any_goals omega
 
+/--
+If there are zeros in another column, there are still zeros after `LUM_clean_col`.
+-/
 lemma LUM_clean_col_prop_other (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   (hjn : j < m) (hj : ∀ c, (hc : c < n) → (i ≤ c) → Aget D.M ⟨c, hc⟩ ⟨j, hjn⟩ = 0) :
     ∀ c, (hc : c < n) → (i ≤ c) → Aget (LUM_clean_col _ D i hin him).M ⟨c,hc⟩ ⟨j,hjn⟩ = 0 := by
@@ -859,6 +842,9 @@ lemma LUM_clean_col_prop_other (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
                         omega
               any_goals omega
 
+/--
+The pivot of `LUM_clean_row` divides the original pivot.
+-/
 lemma LUM_clean_row_dvd (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   (h1 : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) :
     Aget (LUM_clean_row _ D i hin him).M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨i,him⟩  := by
@@ -877,9 +863,34 @@ lemma LUM_clean_row_dvd (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
     apply dvd_trans _ h_3
     apply EuclideanDomain.gcd_dvd_left
 
+/--
+The pivot of `LUM_clean_col` divides the original pivot.
+-/
+lemma LUM_clean_col_dvd (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (h1 : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) :
+    Aget (LUM_clean_col _ D i hin him).M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨i,him⟩  := by
+  have hb : first_nonzero_i_col D.M i = i
+  · grind [first_nonzero_i_col_prop_some_iff D.M i hin him i]
+  have haux :  LUM_clean_col _ D i hin him = LUM_clean_col_after _ D i i him hin h1
+  · grind
+  rw [haux]
+  generalize h : (LUM_clean_col_after _ D i i him hin h1) = result
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, res⟩ => ⌜Aget res.D.M ⟨i, hin⟩ ⟨i, him⟩ ∣ Aget D.M ⟨i, hin⟩ ⟨i, him⟩⌝
+  with mleave
+  any_goals simp_all
+  · expose_names
+    apply dvd_trans _ h_3
+    apply EuclideanDomain.gcd_dvd_left
+
+/--
+The pivot of `LUM_clean_row` divides all the entries at the right of the pivot in the original LUM.
+-/
 lemma LUM_clean_row_dvd' (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   (h1 : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) :
-    ∀ k, (hik : i < k) → (hkm : k < m) → Aget (LUM_clean_row _ D i hin him).M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨k,hkm⟩ := by
+    ∀ k, (hik : i < k) → (hkm : k < m) →
+    Aget (LUM_clean_row _ D i hin him).M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨k,hkm⟩ := by
   have hb : first_nonzero_i_row D.M i = i
   · grind [first_nonzero_i_row_prop_some_iff D.M i hin him i]
   have haux :  LUM_clean_row _ D i hin him = LUM_clean_row_after _ D i i hin him h1
@@ -888,9 +899,11 @@ lemma LUM_clean_row_dvd' (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
   generalize h : (LUM_clean_row_after _ D i i hin him h1) = result
   apply Id.of_wp_run_eq h
   mvcgen invariants
-  · ⇓⟨xs, res⟩ => ⌜(∀ k, (hk: k ∈ xs.prefix) → (Aget res.D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨k,by grind⟩))
+  · ⇓⟨xs, res⟩ => ⌜(∀ k, (hk: k ∈ xs.prefix) →
+      (Aget res.D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨k,by grind⟩))
     ∧
-    (∀ k, (hk : k ∈ xs.suffix) → Aget res.D.M ⟨i,hin⟩ ⟨k, by grind⟩ = Aget D.M ⟨i,hin⟩ ⟨k, by grind⟩ ) ⌝
+    (∀ k, (hk : k ∈ xs.suffix) →
+      Aget res.D.M ⟨i,hin⟩ ⟨k, by grind⟩ = Aget D.M ⟨i,hin⟩ ⟨k, by grind⟩ ) ⌝
   with mleave
   any_goals simp_all
   · expose_names
@@ -927,45 +940,61 @@ lemma LUM_clean_row_dvd' (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
     · omega
     · exact hkm
 
-lemma clean_row_prop_other (A : Mat n m R) (i j : ℕ) (hin : i < n) (him : i < m)
-  (hjn : j < n) (hj : ∀ c, (hc : c < m) → (i ≤ c) → Aget A ⟨j, hjn⟩ ⟨c, hc⟩ = 0) :
-     ∀ c, (hc : c < m) → (i ≤ c) → Aget (clean_row A i hin him) ⟨j,hjn⟩ ⟨c,hc⟩ = 0 := by
-  intro c hcm hic
-  match  h : first_nonzero_i_row A i with
-  | none => grind
-  | some b => rw [clean_row_some _ _ hin him b h]
-              rw [first_nonzero_i_row_prop_some_iff] at h
-              · cases' h with hc1 hc2
-                cases' hc2 with hc2 hc3
-                · split_ifs with h1
-                  · apply prop_clean_row_after''
-                    any_goals omega
-                    intro k hk hkm
-                    apply hj
-                    exact hk
-                  · simp [def_swap_col]
-                    split_ifs with hco1 hco2
-                    · apply prop_clean_row_after''
-                      any_goals omega
-                      intro k hkb hkm
-                      apply hj
-                      any_goals omega
-                    · rw [prop_clean_row_after']
-                      · apply hj
-                        omega
-                      any_goals omega
-                    · by_cases hcasc : c < b
-                      · rw [prop_clean_row_after']
-                        any_goals omega
-                        · apply hj
-                          any_goals omega
-                      · apply prop_clean_row_after''
-                        any_goals omega
-                        intro k hk1 hk2
-                        apply hj
-                        omega
-              any_goals omega
-
+/--
+The pivot of `LUM_clean_col` divides all the entries under the pivot in the original LUM.
+-/
+lemma LUM_clean_col_dvd' (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (h1 : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) :
+    ∀ k, (hik : i < k) → (hkm : k < n) →
+    Aget (LUM_clean_col _ D i hin him).M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨k,hkm⟩ ⟨i,him⟩  := by
+  have hb : first_nonzero_i_col D.M i = i
+  · grind [first_nonzero_i_col_prop_some_iff D.M i hin him i]
+  have haux :  LUM_clean_col _ D i hin him = LUM_clean_col_after _ D i i him hin h1
+  · grind
+  rw [haux]
+  generalize h : (LUM_clean_col_after _ D i i him hin h1) = result
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, res⟩ => ⌜(∀ k, (hk: k ∈ xs.prefix) →
+      (Aget res.D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨k,by grind⟩ ⟨i,him⟩ ))
+    ∧
+    (∀ k, (hk : k ∈ xs.suffix) →
+      Aget res.D.M ⟨k, by grind⟩ ⟨i,him⟩  = Aget D.M ⟨k, by grind⟩ ⟨i,him⟩ ) ⌝
+  with mleave
+  any_goals simp_all
+  · expose_names
+    cases' h_3 with h3 h4
+    intro k hk
+    cases' hk with hk hk
+    · specialize h3 _ hk
+      exact h3
+    · cases hk
+      rw [h_2]
+      simp
+  · expose_names
+    cases' h_3 with h3 h4
+    fconstructor
+    · intro k hk
+      cases' hk with hk hk
+      · specialize h3 k hk
+        apply dvd_trans _ h3
+        apply EuclideanDomain.gcd_dvd_left
+      · cases hk
+        apply EuclideanDomain.gcd_dvd_right
+    · intro k hk
+      rw [reduce_rows_other]
+      · apply h4
+        right
+        exact hk
+      · simp
+        grind
+      · simp
+        grind
+  · expose_names
+    intro k hik hkm
+    apply h_1
+    · omega
+    · exact hkm
 
 
 
