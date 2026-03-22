@@ -170,6 +170,16 @@ lemma suffix0 (P S : List ℕ ) (hPN : P ++ S = (range' i m)) (h : 0 < S.length)
         simp at hm
         grind
 
+lemma cur_suf0 {i m cur : ℕ} {pref suff : List  ℕ} (h : [i + 1:m].toList = pref ++ cur :: suff) (hx0 : suff.length > 0) :
+    suff[0]'(hx0) = cur + 1 := by
+  simp [Std.Range.toList,eq_comm] at h
+  have h1 := suffix0 _ _ _ _  h (by simp)
+  simp at h1
+  rw [List.append_cons] at h
+  have h2 := suffix0 _ _ _ _ h hx0
+  simp at h2
+  omega
+
 @[grind =]
 lemma mem_pref_cursor (xs : ([i:m].toList.Cursor)) (h : 0 < xs.suffix.length) :
     k ∈ xs.prefix ↔ i ≤ k ∧ k < xs.current h := by
@@ -202,7 +212,7 @@ lemma cursor_length (xs : ([i:m].toList.Cursor)) :
   exact haux
 
 @[simp]
-lemma mem_pref_cursor' (xs : ([i:m].toList.Cursor)):
+lemma mem_pref_cursor' (xs : ([i:m].toList.Cursor)) :
     k ∈ xs.prefix ↔ i ≤ k ∧ k < i + xs.prefix.length := by
   have haux := xs.property
   rw [mem_preff _ _ _ _ _ haux]

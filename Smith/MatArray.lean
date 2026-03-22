@@ -1,4 +1,4 @@
-import Smith.MatOperations
+import Smith.XGCD
 
 open AMat
 
@@ -6,7 +6,7 @@ set_option linter.style.cases false
 set_option linter.flexible false
 
 variable {m n l : ℕ}
-variable {R : Type}
+variable {R : Type} [ED : EuclideanDomain R] [DecidableEq R]
 
 open Matrix Nat Array
 
@@ -14,475 +14,13 @@ namespace AMat
 
 open AMat
 
-variable (A : Mat n m R) (B : Mat m l R)
-variable [ED : EuclideanDomain R]
-variable [DecidableEq R]
-
+variable (A : Mat n m R)
 
 open Std.Do
 
 set_option mvcgen.warning false
 
-def first_nonzero_i_row (A : Mat n m R) (i : ℕ) : Option ℕ := Id.run do
-  if hi : n ≤ i ∨ m ≤ i then return none else
-  let ki : Fin n := ⟨i,by simp at hi; tauto⟩
-  for h : k in [i:m] do
-    if Aget A ki ⟨k,Membership.get_elem_helper h rfl⟩ ≠ 0 then
-      return some k
-    else
-      continue
-  return none
-
-@[grind →]
-lemma first_nonzero_i_row_inter (A : Mat n m R) (i b : ℕ) :
-    first_nonzero_i_row A i = some b → (i < n ∧ i < m ∧ i ≤ b ∧ b < m) := by
-  generalize hA : first_nonzero_i_row A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · ⇓⟨xs, out⟩ => ⌜(out.1 = some (some b) →
-        (i < n ∧ i < m ∧ i ≤ b ∧ b < m)) ∧ ∀ k_idx, k_idx ∈ xs.prefix → i ≤ k_idx⌝
-  with mleave
-  · tauto
-  · expose_names
-    simp_all
-    fconstructor
-    · intro hcur
-      have haux : b ∈ [i:m].toList
-      · rw [h_1,hcur]
-        simp
-      grind
-    · grind
-  · expose_names
-    simp_all
-    grind
-  · simp
-  · simp
-  · expose_names
-    intro ha
-    apply h_2.1
-    grind
-
-lemma first_nonzero_i_row_prop_1 (A : Mat n m R) (i b : ℕ) (h : first_nonzero_i_row A i = some b) :
-    Aget A ⟨i,by grind⟩ ⟨b,by grind⟩ ≠ 0 := by
-  have him := first_nonzero_i_row_inter A i b h
-  suffices hsuf : first_nonzero_i_row A i = some b → Aget A ⟨i,by grind⟩ ⟨b,by grind⟩ ≠ 0
-  · apply hsuf h
-  generalize hA : first_nonzero_i_row A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · ⇓⟨xs, out⟩ => ⌜(out.1 = some (some b) → Aget A ⟨i,by grind⟩ ⟨b,by grind⟩ ≠ 0)⌝
-  with simp_all
-  · grind
-
-lemma first_nonzero_i_row_prop_2 (A : Mat n m R) (i b c: ℕ) (h : first_nonzero_i_row A i = some b) :
-    ∀ (h : c < b), i ≤ c → Aget A ⟨i,by grind⟩ ⟨c,by grind⟩ = 0 := by
-  have him := first_nonzero_i_row_inter A i b h
-  suffices hsuf : first_nonzero_i_row A i = some b → ∀ (h : c < b), i ≤ c → Aget A ⟨i,by grind⟩ ⟨c,by grind⟩ = 0
-  · apply hsuf h
-  generalize hA : first_nonzero_i_row A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · Invariant.withEarlyReturn (onReturn := fun r letMuts =>
-      ⌜r = some b → ∀ (h : c < b), i ≤ c → Aget A ⟨i, by grind⟩ ⟨c, by grind⟩ = 0⌝) (onContinue :=
-      fun xs letMuts => ⌜(hxs : 0 < xs.suffix.length) →  ∀ d, (hd : d < (xs.current hxs)) → (i ≤ d) →  Aget A ⟨i, by grind⟩ ⟨d,by grind⟩ = 0⌝)
-  with mleave
-  · simp
-  · expose_names
-    right
-    cases' h_4 with h4 h4
-    · cases' h4 with h4 h5
-      simp at h5
-      simp
-      intro hcur
-      cases hcur
-      apply h5
-    · simp_all
-  · simp_all
-    expose_names
-    intro hxs d hd
-    cases' h_4 with h4 h5
-    · by_cases hcas : d = cur
-      · cases hcas
-        intro
-        exact h_3
-      · apply h5
-        have hcur' : cur ∈ cur :: suff := by simp
-        rw [Std.Range.toList] at h_2
-        simp at h_2
-        rw  [RangeCursor.mem_suff i _ cur pref  (cur :: suff) h_2.symm ] at hcur'
-        rw [List.append_cons] at h_2
-        have hcur : cur ∈ pref ++ [cur] := by simp
-        rw [RangeCursor.mem_preff _ _ _ _ _ h_2.symm] at hcur
-        simp at hcur
-        cases' hcur with hcur1 hcur2
-        cases' hcur' with hcur3 hcur4
-        have hsuf0 := RangeCursor.suffix0 i (m - i) _ _ h_2.symm hxs
-        simp at hsuf0
-        omega
-  · simp_all
-  · simp
-  · simp_all
-
-lemma first_nonzero_i_row_prop_3 (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m)
-    (h : first_nonzero_i_row A i = none)
-  :
-    ∀ d , (hdi : i ≤ d) → (hdm : d < m) → Aget A ⟨ i,hi⟩ ⟨d,hdm⟩ = 0 := by
-  revert h
-  generalize hA : first_nonzero_i_row A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · Invariant.withEarlyReturn
-      (onReturn := fun r letMuts => ⌜∃ k : Fin m, (r = some k ∧ i ≤ k ∧ Aget A ⟨i,hi⟩ k ≠ 0)⌝)
-      (onContinue :=  fun xs letMuts => ⌜∀ k, (hk : k ∈ xs.prefix) →
-        Aget A ⟨i,hi⟩ ⟨k, by grind [RangeCursor.prefix_in_range]⟩ = 0⌝)
-  with mleave
-  · omega
-  · simp_all
-    grind
-  · simp_all
-    expose_names
-    intro k hk
-    cases' hk with hk hk
-    · apply h_3.2
-      exact hk
-    · cases hk
-      exact h_2
-  · simp_all
-  · expose_names
-    simp [h_1] at h_2
-    grind
-  · simp_all
-    expose_names
-    choose k  hk hk2 using h_2
-    grind
-
-lemma first_nonzero_i_row_prop_if (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ)
-  (hbi : i ≤ b) (hbm : b < m)
-  (h1 : Aget A ⟨i, hi⟩ ⟨b, hbm⟩ ≠ 0)
-  (h2 : ∀ k, (hik : i ≤ k) → (hbk : k < b) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0) :
-    first_nonzero_i_row A i = some b := by
-  by_cases hcas : first_nonzero_i_row A i = none
-  · grind [first_nonzero_i_row_prop_3]
-  · have haux : ∃ k, first_nonzero_i_row A i = some k
-    · exact Option.ne_none_iff_exists'.mp hcas
-    choose k hk using haux
-    specialize h2 k (by grind)
-    have haux := first_nonzero_i_row_prop_1 _ _ _ hk
-    rw [hk]
-    simp
-    suffices hsuf : ¬ k < b ∧ ¬ b < k
-    · omega
-    fconstructor
-    · grind
-    · intro hbk
-      have haux2 := first_nonzero_i_row_prop_2 A i k b hk hbk hbi
-      grind
-
-@[simp]
-lemma first_nonzero_i_row_prop_some_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ) :
-  first_nonzero_i_row A i = some b ↔
-    i ≤ b ∧ b < m ∧
-    ((hbm : b < m) →  (Aget A ⟨i, hi⟩ ⟨b, hbm⟩ ≠ 0 ∧ ∀ k, (hik : i ≤ k) → (hbk : k < b) →
-      Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0)) := by
-  fconstructor
-  · grind [first_nonzero_i_row_prop_1,first_nonzero_i_row_prop_2]
-  · intro h1
-    simp at h1
-    rcases h1 with ⟨h1,h2,h3⟩
-    simp [h2] at h3
-    cases' h3 with h3 h4
-    apply first_nonzero_i_row_prop_if
-    all_goals assumption
-
-@[simp]
-lemma first_nonzero_i_row_prop_none_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) :
-    first_nonzero_i_row A i = none ↔
-      ∀ k, (hik : i ≤ k) →  (hkm : k < m) → Aget A ⟨i, hi⟩ ⟨k, by grind⟩ = 0 := by
-  fconstructor
-  · apply first_nonzero_i_row_prop_3 _ _ _ him
-  · intro h
-    by_contra hneg
-    have haux : ∃ b, first_nonzero_i_row A i = some b
-    · rw [← @Option.ne_none_iff_exists']
-      exact hneg
-    choose b hb using haux
-    grind [first_nonzero_i_row_prop_1]
-
-def first_nonzero_i_col (A : Mat n m R) (i : ℕ) : Option ℕ := Id.run do
-  if hi : n ≤ i ∨ m ≤ i then return none else
-  let ki : Fin m := ⟨i,by simp at hi; tauto⟩
-  for h : k in [i:n] do
-    if Aget A ⟨k,Membership.get_elem_helper h rfl⟩ ki ≠ 0 then
-      return some k
-    else
-      continue
-  return none
-
-@[grind →]
-lemma first_nonzero_i_col_inter (A : Mat n m R) (i b : ℕ) :
-    first_nonzero_i_col A i = some b → (i < n ∧ i < m ∧ i ≤ b ∧ b < n) := by
-  generalize hA : first_nonzero_i_col A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · ⇓⟨xs, out⟩ => ⌜(out.1 = some (some b) →
-        (i < n ∧ i < m ∧ i ≤ b ∧ b < n)) ∧ ∀ k_idx, k_idx ∈ xs.prefix → i ≤ k_idx⌝
-  with mleave
-  · tauto
-  · expose_names
-    simp_all
-    fconstructor
-    · intro hcur
-      have haux : b ∈ [i:n].toList
-      · rw [h_1,hcur]
-        simp
-      grind
-    · grind
-  · expose_names
-    simp_all
-    grind
-  · simp
-  · simp
-  · expose_names
-    intro ha
-    apply h_2.1
-    grind
-
-lemma first_nonzero_i_col_prop_1 (A : Mat n m R) (i b : ℕ) (h : first_nonzero_i_col A i = some b) :
-    Aget A ⟨b,by grind⟩ ⟨i,by grind⟩ ≠ 0 := by
-  have him := first_nonzero_i_col_inter A i b h
-  suffices hsuf : first_nonzero_i_col A i = some b → Aget A ⟨b,by grind⟩ ⟨i,by grind⟩ ≠ 0
-  · apply hsuf h
-  generalize hA : first_nonzero_i_col A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · ⇓⟨xs, out⟩ => ⌜(out.1 = some (some b) → Aget A ⟨b,by grind⟩ ⟨i,by grind⟩ ≠ 0)⌝
-  with simp_all
-  · grind
-
-lemma first_nonzero_i_col_prop_2 (A : Mat n m R) (i b c : ℕ)
-  (h : first_nonzero_i_col A i = some b) :
-    ∀ (h : c < b), i ≤ c → Aget A ⟨c,by grind⟩ ⟨i,by grind⟩ = 0 := by
-  have him := first_nonzero_i_col_inter A i b h
-  suffices hsuf : first_nonzero_i_col A i = some b →
-    ∀ (h : c < b), i ≤ c → Aget A ⟨c,by grind⟩ ⟨i,by grind⟩ = 0
-  · apply hsuf h
-  generalize hA : first_nonzero_i_col A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · Invariant.withEarlyReturn (onReturn := fun r letMuts =>
-      ⌜r = some b → ∀ (h : c < b), i ≤ c → Aget A ⟨c, by grind⟩ ⟨i, by grind⟩ = 0⌝) (onContinue :=
-      fun xs letMuts => ⌜(hxs : 0 < xs.suffix.length) →  ∀ d, (hd : d < (xs.current hxs)) →
-        (i ≤ d) →  Aget A ⟨d, by grind⟩ ⟨i,by grind⟩ = 0⌝)
-  with mleave
-  · simp
-  · expose_names
-    right
-    cases' h_4 with h4 h4
-    · cases' h4 with h4 h5
-      simp at h5
-      simp
-      intro hcur
-      cases hcur
-      apply h5
-    · simp_all
-  · simp_all
-    expose_names
-    intro hxs d hd
-    cases' h_4 with h4 h5
-    · by_cases hcas : d = cur
-      · cases hcas
-        intro
-        exact h_3
-      · apply h5
-        have hcur' : cur ∈ cur :: suff := by simp
-        rw [Std.Range.toList] at h_2
-        simp at h_2
-        rw  [RangeCursor.mem_suff i _ cur pref  (cur :: suff) h_2.symm ] at hcur'
-        rw [List.append_cons] at h_2
-        have hcur : cur ∈ pref ++ [cur] := by simp
-        rw [RangeCursor.mem_preff _ _ _ _ _ h_2.symm] at hcur
-        simp at hcur
-        cases' hcur with hcur1 hcur2
-        cases' hcur' with hcur3 hcur4
-        have hsuf0 := RangeCursor.suffix0 i (n - i) _ _ h_2.symm hxs
-        simp at hsuf0
-        omega
-  · simp_all
-  · simp
-  · simp_all
-
-lemma first_nonzero_i_col_prop_3 (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m)
-    (h : first_nonzero_i_col A i = none)
-  :
-    ∀ d , (hdi : i ≤ d) → (hdm : d < n) → Aget A ⟨ d,hdm⟩ ⟨i,him⟩ = 0 := by
-  revert h
-  generalize hA : first_nonzero_i_col A i = res
-  apply Id.of_wp_run_eq hA
-  mvcgen invariants
-  · Invariant.withEarlyReturn
-      (onReturn := fun r letMuts => ⌜∃ k : Fin n, (r = some k ∧ i ≤ k ∧ Aget A k ⟨i,him⟩ ≠ 0)⌝)
-      (onContinue :=  fun xs letMuts => ⌜∀ k, (hk : k ∈ xs.prefix) →
-        Aget A ⟨k, by grind [RangeCursor.prefix_in_range]⟩ ⟨i,him⟩  = 0⌝)
-  with mleave
-  · omega
-  · simp_all
-    grind
-  · simp_all
-    expose_names
-    intro k hk
-    cases' hk with hk hk
-    · apply h_3.2
-      exact hk
-    · cases hk
-      exact h_2
-  · simp_all
-  · expose_names
-    simp [h_1] at h_2
-    grind
-  · simp_all
-    expose_names
-    choose k  hk hk2 using h_2
-    grind
-
-
-lemma first_nonzero_i_col_prop_if (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ)
-  (hbi : i ≤ b) (hbm : b < n)
-  (h1 : Aget A ⟨b, hbm⟩ ⟨i,him⟩ ≠ 0)
-  (h2 : ∀ k, (hik : i ≤ k) → (hbk : k < b) → Aget A ⟨k, by grind⟩ ⟨i, him⟩ = 0) :
-    first_nonzero_i_col A i = some b := by
-  by_cases hcas : first_nonzero_i_col A i = none
-  · grind [first_nonzero_i_col_prop_3]
-  · have haux : ∃ k, first_nonzero_i_col A i = some k
-    · exact Option.ne_none_iff_exists'.mp hcas
-    choose k hk using haux
-    specialize h2 k (by grind)
-    have haux := first_nonzero_i_col_prop_1 _ _ _ hk
-    rw [hk]
-    simp
-    suffices hsuf : ¬ k < b ∧ ¬ b < k
-    · omega
-    fconstructor
-    · grind
-    · intro hbk
-      have haux2 := first_nonzero_i_col_prop_2 A i k b hk hbk hbi
-      grind
-
-@[simp]
-lemma first_nonzero_i_col_prop_some_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) (b : ℕ) :
-  first_nonzero_i_col A i = some b ↔
-    i ≤ b ∧  b < n ∧
-    ((hbm : b < n) →  (Aget A ⟨b, hbm⟩ ⟨i, him⟩ ≠ 0 ∧ ∀ k, (hik : i ≤ k) → (hbk : k < b) →
-      Aget A ⟨k, by grind⟩  ⟨i, him⟩ = 0)) := by
-  fconstructor
-  · grind [first_nonzero_i_col_prop_1,first_nonzero_i_col_prop_2]
-  · intro h1
-    simp at h1
-    rcases h1 with ⟨h1,h2,h3⟩
-    simp [h2] at h3
-    cases' h3 with h3 h4
-    apply first_nonzero_i_col_prop_if
-    all_goals assumption
-
-@[simp]
-lemma first_nonzero_i_col_prop_none_iff (A : Mat n m R) (i : ℕ) (hi : i < n) (him : i < m) :
-    first_nonzero_i_col A i = none ↔
-     ∀ k, (hik : i ≤ k) →  (hkm : k < n) → Aget A ⟨k,hkm⟩ ⟨i,him⟩ = 0 := by
-  fconstructor
-  · grind [first_nonzero_i_col_prop_3]
-  · intro h
-    by_contra hneg
-    have haux : ∃ b, first_nonzero_i_col A i = some b
-    · rw [← @Option.ne_none_iff_exists']
-      exact hneg
-    choose b hb using haux
-    grind [first_nonzero_i_col_prop_1]
-
 open EuclideanDomain
-
-def xgcdcompu (a b : R) : R := -b / (gcd a b)
-
-def xgcdcompv (a b : R) : R := a / (gcd a b)
-
-lemma def_xgcdcompv (a b : R) : a = (xgcdcompv a b) * (gcd a b) := by
-  by_cases ha : a = 0
-  · simp [ha,xgcdcompv]
-  · rw [xgcdcompv,mul_comm,EuclideanDomain.mul_div_cancel']
-    · intro h
-      rw [EuclideanDomain.gcd_eq_zero_iff] at h
-      grind
-    · exact EuclideanDomain.gcd_dvd_left a b
-
-lemma def_xgcdcompu (a b : R) : b = -(xgcdcompu a b) * (gcd a b) := by
-  by_cases hb : b = 0
-  · simp [hb,xgcdcompu]
-  · rw [xgcdcompu,mul_comm]
-    have haux : (gcd a b ) ∣ b
-    · exact EuclideanDomain.gcd_dvd_right a b
-    choose c hc using haux
-    have haux2 : -b = -c * gcd a b
-    · nth_rewrite 1 [hc]
-      ring
-    rw [haux2,EuclideanDomain.mul_div_assoc,EuclideanDomain.div_self]
-    · simp only [mul_one, neg_neg]
-      exact hc
-    · grind [EuclideanDomain.gcd_eq_zero_iff]
-    · simp
-
-lemma xgcdcompzero (a b : R) : (xgcdcompu a b) * a + (xgcdcompv a b) * b = 0 := by
-  · simp [xgcdcompv, xgcdcompu]
-    have h1 := gcd_dvd a b
-    by_cases hcas : (gcd a b) = 0
-    · simp [hcas]
-    · cases' h1 with h1 h2
-      choose x hx using h1
-      choose y hy using h2
-      have ha : a / (gcd a b) = x
-      · nth_rewrite 1 [hx]
-        apply mul_div_cancel_left₀
-        · exact hcas
-      have hb : b / (gcd a b) = y
-      · nth_rewrite 1 [hy]
-        exact mul_div_cancel_left₀ y hcas
-      have haux : ((-b )/ (gcd a b)) * a = - ((b / gcd a b) * a)
-      · nth_rewrite 1 3 [hy]
-        rw [← mul_neg,mul_comm _ (-y),EuclideanDomain.mul_div_assoc]
-        · rw [neg_mul,neg_mul]
-          rw [mul_comm _ y,EuclideanDomain.mul_div_assoc]
-          simp
-        · simp
-      rw [haux,ha,hb,hy]
-      nth_rewrite 1 [hx]
-      ring
-
-@[grind =]
-lemma xgcdcompone (a b : R) (hb : a ≠ 0) :
-    gcdA a b * xgcdcompv a b - gcdB a b * xgcdcompu a b =  1 := by
-  have haux := EuclideanDomain.gcd_eq_gcd_ab a b
-  have h1 := def_xgcdcompu a b
-  have h2 := def_xgcdcompv a b
-  nth_rewrite 2 [h2] at haux
-  nth_grewrite 5 [h1] at haux
-  rw [mul_comm _ (gcd a b),mul_comm _ (gcd a b), ED.mul_assoc,ED.mul_assoc,← mul_add] at haux
-  nth_rewrite 1 [← mul_one (gcd a b)] at haux
-  have haux2 := sub_eq_zero_of_eq haux
-  rw [← mul_sub,mul_eq_zero_iff_left] at haux2
-  · grind
-  grind
-
-@[grind =]
-lemma xgcdcompone' (a b : R) (hb : b ≠ 0) :
-    gcdA a b * xgcdcompv a b - gcdB a b * xgcdcompu a b =  1 := by
-  have haux := EuclideanDomain.gcd_eq_gcd_ab a b
-  have h1 := def_xgcdcompu a b
-  have h2 := def_xgcdcompv a b
-  nth_rewrite 2 [h2] at haux
-  nth_grewrite 5 [h1] at haux
-  rw [mul_comm _ (gcd a b),mul_comm _ (gcd a b), ED.mul_assoc,ED.mul_assoc,← mul_add] at haux
-  nth_rewrite 1 [← mul_one (gcd a b)] at haux
-  have haux2 := sub_eq_zero_of_eq haux
-  rw [← mul_sub,mul_eq_zero_iff_left] at haux2
-  · grind
-  grind
 
 def lincom_cols (A : Mat n m R) (i j : Fin m) (u v x y : R) : Mat n m R := Id.run do
   let mut res := A
@@ -641,7 +179,7 @@ lemma reduce_cols_gcd (A : Mat n m R) (i j : Fin m) (k : Fin n) :
   ring
 
 @[grind =]
-lemma  reduce_cols_zero (A : Mat n m R) (i j : Fin m) (k : Fin n) (hij : i ≠ j) :
+lemma reduce_cols_zero (A : Mat n m R) (i j : Fin m) (k : Fin n) (hij : i ≠ j) :
     Aget (reduce_cols A i j k) k j = 0 := by
   have haux : j ≠ i := by tauto
   simp [reduce_cols,def_lincom_cols,haux,xgcdcompzero]
@@ -671,7 +209,8 @@ lemma lincom_mul (A : Mat n m R) (B : Mat m l R) (i j : Fin m) (u v x y : R) (hi
     cases' hii with hii hiij
     simp [hii, hiij]
 
-def LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j) (h : u * y - v * x = 1) : LUM A where
+def LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j)
+  (h : u * y - v * x = 1) : LUM A where
   L := lincom_cols D.L i j y (-x) (-v) u
   M := lincom_rows D.M i j u v x y
   R := D.R
@@ -681,7 +220,8 @@ def LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j) (h :
     rw [haux]
     exact D.h
 
-def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j) (h : u * y - v * x = 1) : LUM A where
+def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
+  (h : u * y - v * x = 1) : LUM A where
   L := D.L
   M := lincom_cols D.M i j u v x y
   R := lincom_rows D.R i j y (-x) (-v) u
@@ -690,7 +230,8 @@ def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j) (h :
     rw [← mul_assoc,haux,mul_assoc]
     exact D.h
 
-lemma def_LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j) (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
+lemma def_LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
+  (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
     Aget (LUM_lincom_cols A D i j u v x y hij h).M a b =
       if b = i then
         u * Aget D.M a i + v * Aget D.M a j
@@ -700,7 +241,8 @@ lemma def_LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j
         Aget D.M a b := by
   simp [LUM_lincom_cols,def_lincom_cols]
 
-lemma def_LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j) (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
+lemma def_LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j)
+  (h : u * y - v * x = 1) (a : Fin n) (b : Fin m) :
     Aget (LUM_lincom_rows A D i j u v x y hij h).M a b =
       if a = i then
         u * Aget D.M i b + v * Aget D.M j b
@@ -728,7 +270,20 @@ def LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (hij : i ≠ j)
     (xgcdcompv (Aget D.M i k) (Aget D.M j k))
     hij (xgcdcompone _ _ h0)
 
-def def_LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (b : Fin m) (hij : i ≠ j) (h0 : Aget D.M k i ≠ 0):
+@[simp]
+lemma LUM_reduce_cols_eq_M (D : LUM A) (i j : Fin m) (k : Fin n) (hij : i ≠ j)
+  (h0 : Aget D.M k i ≠ 0) :
+    (LUM_reduce_cols A D i j k hij h0).M = reduce_cols D.M i j k := by
+  rfl
+
+@[simp]
+lemma LUM_reduce_rows_eq_M (D : LUM A) (i j : Fin n) (k : Fin m) (hij : i ≠ j)
+  (h0 : Aget D.M i k ≠ 0) :
+    (LUM_reduce_rows A D i j k hij h0).M = reduce_rows D.M i j k := by
+  rfl
+
+lemma def_LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (b : Fin m) (hij : i ≠ j)
+  (h0 : Aget D.M k i ≠ 0) :
     Aget (LUM_reduce_cols A D i j k hij h0).M k b =
       if b = i then
         EuclideanDomain.gcd (Aget D.M k i) (Aget D.M k j)
@@ -745,7 +300,8 @@ def def_LUM_reduce_cols (D : LUM A) (i j : Fin m) (k : Fin n) (b : Fin m) (hij :
   · simp [def_LUM_lincom_cols,h1]
     tauto
 
-def def_LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (a : Fin n) (hij : i ≠ j) (h0 : Aget D.M i k ≠ 0):
+lemma def_LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (a : Fin n) (hij : i ≠ j)
+  (h0 : Aget D.M i k ≠ 0) :
     Aget (LUM_reduce_rows A D i j k hij h0).M a k =
       if a = i then
         EuclideanDomain.gcd (Aget D.M i k) (Aget D.M j k)
@@ -754,7 +310,7 @@ def def_LUM_reduce_rows (D : LUM A) (i j : Fin n) (k : Fin m) (a : Fin n) (hij :
       else
         Aget D.M a k := by
   simp [LUM_reduce_rows,def_LUM_lincom_rows]
-  split_ifs with h1 h2 h3
+  split_ifs with h1 h2
   · simp [EuclideanDomain.gcd_eq_gcd_ab]
     ring
   · apply xgcdcompzero
@@ -769,6 +325,207 @@ def clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) : Mat n m R := Id.
     else
       res := reduce_cols res ⟨b,by simp at h; omega⟩ ⟨k, Membership.get_elem_helper h rfl⟩ ⟨i,hin⟩
   return res
+
+structure LUM_nonzero (i : Fin n) (j : Fin m) : Type where
+  D : LUM A
+  hD : Aget D.M i j ≠ 0
+
+
+/--
+Perform column operations to get zeros at the right of a given entry
+-/
+def LUM_clean_row_after (D : LUM A) (i b : ℕ) (hin : i < n) (hb : b < m)
+  (hb0 : Aget D.M ⟨i, hin⟩ ⟨b, hb⟩ ≠ 0) : LUM A:= Id.run do
+  let mut res : LUM_nonzero A ⟨i,hin⟩ ⟨b,hb⟩ := {
+    D := D
+    hD := hb0
+  }
+  for h : k in [b + 1:m] do
+    if Aget res.D.M ⟨i,hin⟩ ⟨k,Membership.get_elem_helper h rfl⟩ = 0
+    then
+      continue
+    else
+      res := {
+        D := LUM_reduce_cols _ res.D ⟨b,by simp at h; omega⟩ ⟨k, Membership.get_elem_helper h rfl⟩
+         ⟨i,hin⟩ (by simp at h ⊢ ; omega) (res.hD)
+        hD := by
+          simp [EuclideanDomain.gcd_eq_zero_iff,res.hD]
+      }
+  return res.D
+
+/--
+Preform row operations to get zeros under a given entry
+-/
+def LUM_clean_col_after (D : LUM A) (i b : ℕ) (hin : i < m) (hb : b < n)
+  (hb0 : Aget D.M ⟨b, hb⟩ ⟨i, hin⟩ ≠ 0) : LUM A:= Id.run do
+  let mut res : LUM_nonzero A ⟨b,hb⟩ ⟨i,hin⟩ := {
+    D := D
+    hD := hb0
+  }
+  for h : k in [b + 1:n] do
+    if Aget res.D.M ⟨k,Membership.get_elem_helper h rfl⟩ ⟨i,hin⟩ = 0
+    then
+      continue
+    else
+      res := {
+        D := LUM_reduce_rows _ res.D ⟨b,hb⟩ ⟨k, Membership.get_elem_helper h rfl⟩
+          ⟨i,hin⟩ (by simp at h ⊢ ; omega) (res.hD)
+        hD := by
+          simp [EuclideanDomain.gcd_eq_zero_iff,res.hD]
+      }
+  return res.D
+
+lemma LUM_prop_clean_row_after (D : LUM A) (i b : ℕ) (hin : i < n) (hb : b < m)
+  (hb0 : Aget D.M ⟨i, hin⟩ ⟨b, hb⟩ ≠ 0) :
+    ∀ k, b < k → (hkm : k < m) →  Aget (LUM_clean_row_after _ D i b hin hb hb0).M
+      ⟨i, hin⟩ ⟨k, hkm⟩ = 0 := by
+  generalize h : LUM_clean_row_after _ D i b hin hb hb0 = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜∀ k, (hk : k ∈ xs.prefix) → Aget letMuts.D.M ⟨i,hin⟩ ⟨k,by grind⟩ = 0⌝
+  with mleave
+  · simp_all
+    expose_names
+    intro k hk
+    cases' hk with hk hk
+    · apply h_3
+      exact hk
+    · cases hk
+      exact h_2
+  · simp_all
+    expose_names
+    intro k hk
+    cases' hk with hk hk
+    · rw [reduce_cols_other]
+      · apply h_3
+        exact hk
+      · simp
+        intro hkb
+        cases hkb
+        have haux : b ∈ [b + 1:m].toList
+        · rw [h_1]
+          grind
+        simp at haux
+      · grind
+    · cases hk
+      grind [reduce_cols_zero]
+  · simp_all
+  · grind
+
+lemma LUM_prop_clean_col_after (D : LUM A) (i b : ℕ) (hin : i < m) (hb : b < n)
+  (hb0 : Aget D.M ⟨b, hb⟩ ⟨i, hin⟩ ≠ 0) :
+    ∀ k, b < k → (hkm : k < n) →  Aget (LUM_clean_col_after _ D i b hin hb hb0).M
+      ⟨k, hkm⟩ ⟨i, hin⟩ = 0 := by
+  generalize h : LUM_clean_col_after _ D i b hin hb hb0 = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜∀ k, (hk : k ∈ xs.prefix) → Aget letMuts.D.M  ⟨k,by grind⟩ ⟨i,hin⟩ = 0⌝
+  with mleave
+  · simp_all
+    expose_names
+    intro k hk
+    cases' hk with hk hk
+    · apply h_3
+      exact hk
+    · cases hk
+      exact h_2
+  · simp_all
+    expose_names
+    intro k hk
+    cases' hk with hk hk
+    · rw [reduce_rows_other]
+      · apply h_3
+        exact hk
+      · simp
+        intro hkb
+        cases hkb
+        have haux : b ∈ [b + 1:n].toList
+        · rw [h_1]
+          grind
+        simp at haux
+      · grind
+    · cases hk
+      grind [reduce_rows_zero]
+  · simp_all
+  · grind
+
+lemma LUM_prop_clean_row_after' (D : LUM A) (i j b : ℕ) (hin : i < n) (hjn : j < n) (hb : b < m)
+  (hb0 : Aget D.M ⟨i, hin⟩ ⟨b, hb⟩ ≠ 0) :
+    ∀ k, (hkb : k < b)  →  Aget (LUM_clean_row_after _ D i b hin hb hb0).M ⟨j, hjn⟩ ⟨k,by omega⟩ =
+      Aget D.M ⟨j, hjn⟩ ⟨k, by omega⟩ := by
+  generalize h : LUM_clean_row_after _ D i b hin hb hb0 = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜∀ k, (hkb : k < b)  →  Aget letMuts.D.M ⟨j, hjn⟩ ⟨k, by omega⟩ =
+      Aget D.M ⟨j, hjn⟩ ⟨k,by omega⟩⌝
+  with mleave
+  · simp_all
+    expose_names
+    intro k hk
+    rw [reduce_cols_other,h_3]
+    any_goals grind
+  · tauto
+
+lemma LUM_prop_clean_col_after' (D : LUM A) (i j b : ℕ) (hin : i < m) (hjn : j < m) (hb : b < n)
+  (hb0 : Aget D.M ⟨b, hb⟩ ⟨i, hin⟩ ≠ 0) :
+    ∀ k, (hkb : k < b) → Aget (LUM_clean_col_after _ D i b hin hb hb0).M ⟨k,by omega⟩ ⟨j, hjn⟩  =
+      Aget D.M ⟨k, by omega⟩ ⟨j, hjn⟩  := by
+  generalize h : LUM_clean_col_after _ D i b hin hb hb0 = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜∀ k, (hkb : k < b)  →  Aget letMuts.D.M ⟨k, by omega⟩ ⟨j, hjn⟩  =
+      Aget D.M ⟨k,by omega⟩ ⟨j, hjn⟩⌝
+  with mleave
+  · simp_all
+    expose_names
+    intro k hk
+    rw [reduce_rows_other,h_3]
+    any_goals grind
+  · tauto
+
+lemma LUM_prop_clean_row_after'' (D : LUM A) (i j b : ℕ) (hin : i < n) (hjn : j < n) (hb : b < m)
+  (hb0 : Aget D.M ⟨i, hin⟩ ⟨b, hb⟩ ≠ 0)
+  (h : ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget D.M ⟨j, hjn⟩ ⟨k, hkm⟩ = 0) :
+    ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget (LUM_clean_row_after _ D i b hin hb hb0).M
+      ⟨j, hjn⟩ ⟨k, hkm⟩ = 0 := by
+  generalize h : LUM_clean_row_after _ D i b hin hb hb0 = resu
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ => ⌜∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget letMuts.D.M ⟨j,hjn⟩ ⟨k,hkm⟩ = 0⌝
+  with mleave
+  · expose_names
+    intro k hbk hkm
+    have h4 := h_4 b (by omega)
+    have h5 := h_4 cur (by grind) (by grind)
+    rw [LUM_reduce_cols,def_LUM_lincom_cols,h4,h5]
+    simp
+    intro h1 h2
+    apply h_4
+    exact hbk
+
+lemma LUM_prop_clean_col_after'' (D : LUM A) (i j b : ℕ) (hin : i < m) (hjn : j < m) (hb : b < n)
+(hb0 : Aget D.M ⟨b, hb⟩ ⟨i, hin⟩ ≠ 0)
+(h : ∀ k, (hkb : b ≤ k) → (hkm : k < n) → Aget D.M ⟨k, hkm⟩ ⟨j, hjn⟩ = 0) :
+  ∀ k, (hkb : b ≤ k) → (hkm : k < n) → Aget (LUM_clean_col_after _ D i b hin hb hb0).M
+    ⟨k, hkm⟩ ⟨j, hjn⟩ = 0 := by
+generalize h : LUM_clean_col_after _ D i b hin hb hb0 = resu
+apply Id.of_wp_run_eq h
+mvcgen invariants
+· ⇓⟨xs, letMuts⟩ => ⌜∀ k, (hkb : b ≤ k) → (hkm : k < n) → Aget letMuts.D.M ⟨k,hkm⟩ ⟨j,hjn⟩ = 0⌝
+with mleave
+· expose_names
+  intro k hbk hkm
+  have h4 := h_4 b (by omega)
+  have h5 := h_4 cur (by grind) (by grind)
+  rw [LUM_reduce_rows,def_LUM_lincom_rows,h4,h5]
+  simp
+  intro h1 h2
+  apply h_4
+  exact hbk
 
 lemma prop_clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) (hbm : b < m) :
    ∀ k, b < k → (hkm : k < m) →  Aget (clean_row_after A i b hin) ⟨i,hin⟩ ⟨k,hkm⟩ = 0 := by
@@ -807,7 +564,8 @@ lemma prop_clean_row_after (A : Mat n m R) (i b : ℕ) (hin : i < n) (hbm : b < 
   · grind
 
 lemma prop_clean_row_after' (A : Mat n m R) (i b j : ℕ) (hin : i < n) (hjn : j < n) (hbm : b < m) :
-    ∀ k, (hkb : k < b)  →  Aget (clean_row_after A i b hin) ⟨j,hjn⟩ ⟨k,by omega⟩ = Aget A ⟨j,hjn⟩ ⟨k,by omega⟩ := by
+    ∀ k, (hkb : k < b)  →  Aget (clean_row_after A i b hin) ⟨j, hjn⟩ ⟨k, by omega⟩ =
+      Aget A ⟨j, hjn⟩ ⟨k,by omega⟩ := by
   generalize h : clean_row_after A i b hin = resu
   apply Id.of_wp_run_eq h
   mvcgen invariants
@@ -818,13 +576,14 @@ lemma prop_clean_row_after' (A : Mat n m R) (i b j : ℕ) (hin : i < n) (hjn : j
   · tauto
 
 lemma prop_clean_row_after'' (A : Mat n m R) (i b j : ℕ) (hin : i < n) (hjn : j < n) (hbm : b < m)
-  (h : ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget A ⟨j,hjn⟩ ⟨k, hkm⟩ = 0) :
-    ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget (clean_row_after A i b hin) ⟨j,hjn⟩ ⟨k,hkm⟩ = 0 := by
+  (h : ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget A ⟨j, hjn⟩ ⟨k, hkm⟩ = 0) :
+    ∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget (clean_row_after A i b hin) ⟨j, hjn⟩ ⟨k, hkm⟩ = 0 :=
+  by
   generalize h : clean_row_after A i b hin = resu
   apply Id.of_wp_run_eq h
   mvcgen invariants
   · ⇓⟨xs, letMuts⟩ =>
-    ⌜∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget letMuts ⟨j,hjn⟩ ⟨k,hkm⟩ = 0⌝
+    ⌜∀ k, (hkb : b ≤ k) → (hkm : k < m) → Aget letMuts ⟨j, hjn⟩ ⟨k, hkm⟩ = 0⌝
   with mleave
   · expose_names
     intro k hbk hkm
@@ -843,19 +602,151 @@ def clean_row (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) : Mat n m R 
     else
       swap_col (clean_row_after A i b hin) ⟨i,him⟩ ⟨b,by grind⟩
 
+def LUM_clean_row (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) : LUM A :=
+  match h : first_nonzero_i_row D.M i with
+  | none => D
+  | some b => if hib : i = b then LUM_clean_row_after _ D i i hin him
+    (by cases hib; exact first_nonzero_i_row_prop_1 D.M i i h)
+    else
+      LUM_swap_col _ (LUM_clean_row_after _ D i b hin (by grind)
+        (first_nonzero_i_row_prop_1 D.M i b h))  ⟨i,him⟩ ⟨b, by grind⟩
+
+def LUM_clean_col (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) : LUM A :=
+  match h : first_nonzero_i_col D.M i with
+  | none => D
+  | some b => if hib : i = b then LUM_clean_col_after _ D i i him hin
+    (by cases hib; exact first_nonzero_i_col_prop_1 D.M i i h)
+    else
+      LUM_swap_row _ (LUM_clean_col_after _ D i b him (by grind)
+        (first_nonzero_i_col_prop_1 D.M i b h))  ⟨i,hin⟩ ⟨b, by grind⟩
+
 @[grind =]
-lemma clean_row_none (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) (hnz : first_nonzero_i_row A i = none) :
+lemma clean_row_none (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m)
+  (hnz : first_nonzero_i_row A i = none) :
     clean_row A i hin him = A := by
   unfold clean_row
   grind
 
+@[grind =]
+lemma LUM_clean_row_none (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (hnz : first_nonzero_i_row D.M i = none) :
+    LUM_clean_row _ D i hin him = D := by
+  unfold LUM_clean_row
+  grind
+
+@[grind =]
+lemma LUM_clean_col_none (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (hnz : first_nonzero_i_col D.M i = none) :
+    LUM_clean_col _ D i hin him = D := by
+  unfold LUM_clean_col
+  grind
+
 @[grind →]
-lemma clean_row_some (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ ) (h : first_nonzero_i_row A i = some b) :
+lemma clean_row_some (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ)
+  (h : first_nonzero_i_row A i = some b) :
     clean_row A i hin him = if i = b then clean_row_after A i i hin
       else
     swap_col (clean_row_after A i b hin) ⟨i,him⟩ ⟨b,by grind⟩ := by
   unfold clean_row
   grind
+
+@[grind →]
+lemma LUM_clean_row_some (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ)
+  (h : first_nonzero_i_row D.M i = some b) :
+    LUM_clean_row _ D i hin him =
+      if hib : i = b
+      then
+        LUM_clean_row_after _ D i i hin him
+          (by rw [←hib] at h; exact first_nonzero_i_row_prop_1 _ _ _ h)
+      else
+        LUM_swap_col A (LUM_clean_row_after _ D i b hin
+        (first_nonzero_i_row_inter D.M i b h).2.2.2 (first_nonzero_i_row_prop_1 D.M i b h))
+        ⟨i,him⟩ ⟨b,(first_nonzero_i_row_inter D.M i b h).2.2.2⟩ := by
+  unfold LUM_clean_row
+  grind
+
+@[grind →]
+lemma LUM_clean_col_some (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) (b : ℕ)
+  (h : first_nonzero_i_col D.M i = some b) :
+    LUM_clean_col _ D i hin him =
+      if hib : i = b
+      then
+        LUM_clean_col_after _ D i i him hin
+          (by rw [←hib] at h; exact first_nonzero_i_col_prop_1 _ _ _ h)
+      else
+        LUM_swap_row A (LUM_clean_col_after _ D i b him
+        (first_nonzero_i_col_inter _ _ _ h).2.2.2 (first_nonzero_i_col_prop_1 _ _ _ h))
+        ⟨i,hin⟩ ⟨b,(first_nonzero_i_col_inter _ _ _ h).2.2.2⟩ := by
+  unfold LUM_clean_col
+  grind
+
+@[grind =]
+lemma LUM_clean_row_prop (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) :
+    ∀ k, i < k → (hk : k < m) → Aget (LUM_clean_row A D i hin him).M ⟨i,hin⟩ ⟨k,hk⟩ = 0 := by
+  intro k hkn hkm
+  match hnz : (first_nonzero_i_row D.M i) with
+  | none => rw [LUM_clean_row_none]
+            · rw [first_nonzero_i_row_prop_none_iff] at hnz
+              · apply hnz
+                any_goals omega
+              · exact hin
+              · exact him
+            · exact hnz
+  | some b => rw [LUM_clean_row_some A D i hin him b hnz]
+              rw [first_nonzero_i_row_prop_some_iff _ _ hin him _ ] at hnz
+              cases' hnz with hn1 hn2
+              cases' hn2 with hn3 hn4
+              specialize hn4 hn3
+              cases' hn4 with hn4 hn6
+              split_ifs with h1
+              · apply LUM_prop_clean_row_after
+                any_goals omega
+              · simp [LUM_swap_col,def_swap_col]
+                split_ifs with h2 h3
+                · omega
+                · rw [LUM_prop_clean_row_after']
+                  any_goals aesop
+                · by_cases hcas : k < b
+                  · rw [LUM_prop_clean_row_after']
+                    · apply hn6
+                      any_goals omega
+                    exact hcas
+                  · apply LUM_prop_clean_row_after
+                    any_goals omega
+
+@[grind =]
+lemma LUM_clean_col_prop (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) :
+    ∀ k, i < k → (hk : k < n) → Aget (LUM_clean_col A D i hin him).M ⟨k,hk⟩ ⟨i,him⟩ = 0 := by
+  intro k hkn hkm
+  match hnz : (first_nonzero_i_col D.M i) with
+  | none => rw [LUM_clean_col_none]
+            · rw [first_nonzero_i_col_prop_none_iff] at hnz
+              · apply hnz
+                any_goals omega
+              · exact hin
+              · exact him
+            · exact hnz
+  | some b => rw [LUM_clean_col_some A D i hin him b hnz]
+              rw [first_nonzero_i_col_prop_some_iff _ _ hin him _ ] at hnz
+              cases' hnz with hn1 hn2
+              cases' hn2 with hn3 hn4
+              specialize hn4 hn3
+              cases' hn4 with hn4 hn6
+              split_ifs with h1
+              · apply LUM_prop_clean_col_after
+                any_goals omega
+              · simp [LUM_swap_row,def_swap_row]
+                split_ifs with h2 h3
+                · omega
+                · rw [LUM_prop_clean_col_after']
+                  any_goals aesop
+                · by_cases hcas : k < b
+                  · rw [LUM_prop_clean_col_after']
+                    · apply hn6
+                      any_goals omega
+                    exact hcas
+                  · apply LUM_prop_clean_col_after
+                    any_goals omega
 
 lemma clean_row_prop (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) :
     ∀ k, i < k → (hk : k < m) → Aget (clean_row A i hin him) ⟨i,hin⟩ ⟨k,hk⟩ = 0 := by
@@ -864,8 +755,7 @@ lemma clean_row_prop (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) :
   | none => rw [clean_row_none]
             · rw [first_nonzero_i_row_prop_none_iff] at hnz
               · apply hnz
-                omega
-                exact hkm
+                any_goals omega
               · exact hin
               · exact him
             · exact hnz
@@ -885,13 +775,160 @@ lemma clean_row_prop (A : Mat n m R) (i : ℕ) (hin : i < n) (him : i < m) :
                   any_goals aesop
                 · by_cases hcas : k < b
                   · rw [prop_clean_row_after']
-                    apply hn6
+                    · apply hn6
+                      any_goals omega
                     any_goals omega
                   · apply prop_clean_row_after
                     any_goals omega
 
-lemma clean_row_prop_other (A : Mat n m R) (i j: ℕ) (hin : i < n) (him : i < m)
-  (hjn : j < n) (hj : ∀ c, (hc : c < m) → (i ≤ c) → Aget A ⟨j,hjn⟩ ⟨c,hc⟩ = 0 ) :
+lemma LUM_clean_row_prop_other (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (hjn : j < n) (hj : ∀ c, (hc : c < m) → (i ≤ c) → Aget D.M ⟨j, hjn⟩ ⟨c, hc⟩ = 0) :
+    ∀ c, (hc : c < m) → (i ≤ c) → Aget (LUM_clean_row _ D i hin him).M ⟨j,hjn⟩ ⟨c,hc⟩ = 0 := by
+  intro c hcm hic
+  match  h : first_nonzero_i_row D.M i with
+  | none => grind
+  | some b => rw [LUM_clean_row_some _ _ i hin him b h]
+              rw [first_nonzero_i_row_prop_some_iff] at h
+              · cases' h with hc1 hc2
+                cases' hc2 with hc2 hc3
+                · split_ifs with h1
+                  · apply LUM_prop_clean_row_after''
+                    any_goals omega
+                    intro k hk hkm
+                    apply hj
+                    exact hk
+                  · simp [LUM_swap_col,def_swap_col]
+                    split_ifs with hco1 hco2
+                    · apply LUM_prop_clean_row_after''
+                      any_goals omega
+                      intro k hkb hkm
+                      apply hj
+                      any_goals omega
+                    · rw [LUM_prop_clean_row_after']
+                      · apply hj
+                        omega
+                      any_goals omega
+                    · by_cases hcasc : c < b
+                      · rw [LUM_prop_clean_row_after']
+                        any_goals omega
+                        · apply hj
+                          any_goals omega
+                      · apply LUM_prop_clean_row_after''
+                        any_goals omega
+                        intro k hk1 hk2
+                        apply hj
+                        omega
+              any_goals omega
+
+lemma LUM_clean_col_prop_other (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (hjn : j < m) (hj : ∀ c, (hc : c < n) → (i ≤ c) → Aget D.M ⟨c, hc⟩ ⟨j, hjn⟩ = 0) :
+    ∀ c, (hc : c < n) → (i ≤ c) → Aget (LUM_clean_col _ D i hin him).M ⟨c,hc⟩ ⟨j,hjn⟩ = 0 := by
+  intro c hcm hic
+  match  h : first_nonzero_i_col D.M i with
+  | none => grind
+  | some b => rw [LUM_clean_col_some _ _ i hin him b h]
+              rw [first_nonzero_i_col_prop_some_iff] at h
+              · cases' h with hc1 hc2
+                cases' hc2 with hc2 hc3
+                · split_ifs with h1
+                  · apply LUM_prop_clean_col_after''
+                    any_goals omega
+                    intro k hk hkm
+                    apply hj
+                    exact hk
+                  · simp [LUM_swap_row,def_swap_row]
+                    split_ifs with hco1 hco2
+                    · apply LUM_prop_clean_col_after''
+                      any_goals omega
+                      intro k hkb hkm
+                      apply hj
+                      any_goals omega
+                    · rw [LUM_prop_clean_col_after']
+                      · apply hj
+                        omega
+                      any_goals omega
+                    · by_cases hcasc : c < b
+                      · rw [LUM_prop_clean_col_after']
+                        any_goals omega
+                        · apply hj
+                          any_goals omega
+                      · apply LUM_prop_clean_col_after''
+                        any_goals omega
+                        intro k hk1 hk2
+                        apply hj
+                        omega
+              any_goals omega
+
+lemma LUM_clean_row_dvd (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (h1 : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) :
+    Aget (LUM_clean_row _ D i hin him).M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨i,him⟩  := by
+  have hb : first_nonzero_i_row D.M i = i
+  · grind [first_nonzero_i_row_prop_some_iff D.M i hin him i]
+  have haux :  LUM_clean_row _ D i hin him = LUM_clean_row_after _ D i i hin him h1
+  · grind
+  rw [haux]
+  generalize h : (LUM_clean_row_after _ D i i hin him h1) = result
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, res⟩ => ⌜Aget res.D.M ⟨i, hin⟩ ⟨i, him⟩ ∣ Aget D.M ⟨i, hin⟩ ⟨i, him⟩⌝
+  with mleave
+  any_goals simp_all
+  · expose_names
+    apply dvd_trans _ h_3
+    apply EuclideanDomain.gcd_dvd_left
+
+lemma LUM_clean_row_dvd' (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m)
+  (h1 : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) :
+    ∀ k, (hik : i < k) → (hkm : k < m) → Aget (LUM_clean_row _ D i hin him).M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨k,hkm⟩ := by
+  have hb : first_nonzero_i_row D.M i = i
+  · grind [first_nonzero_i_row_prop_some_iff D.M i hin him i]
+  have haux :  LUM_clean_row _ D i hin him = LUM_clean_row_after _ D i i hin him h1
+  · grind
+  rw [haux]
+  generalize h : (LUM_clean_row_after _ D i i hin him h1) = result
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, res⟩ => ⌜(∀ k, (hk: k ∈ xs.prefix) → (Aget res.D.M ⟨i,hin⟩ ⟨i,him⟩ ∣ Aget D.M ⟨i,hin⟩ ⟨k,by grind⟩))
+    ∧
+    (∀ k, (hk : k ∈ xs.suffix) → Aget res.D.M ⟨i,hin⟩ ⟨k, by grind⟩ = Aget D.M ⟨i,hin⟩ ⟨k, by grind⟩ ) ⌝
+  with mleave
+  any_goals simp_all
+  · expose_names
+    cases' h_3 with h3 h4
+    intro k hk
+    cases' hk with hk hk
+    · specialize h3 _ hk
+      exact h3
+    · cases hk
+      rw [h_2]
+      simp
+  · expose_names
+    cases' h_3 with h3 h4
+    fconstructor
+    · intro k hk
+      cases' hk with hk hk
+      · specialize h3 k hk
+        apply dvd_trans _ h3
+        apply EuclideanDomain.gcd_dvd_left
+      · cases hk
+        apply EuclideanDomain.gcd_dvd_right
+    · intro k hk
+      rw [reduce_cols_other]
+      · apply h4
+        right
+        exact hk
+      · simp
+        grind
+      · simp
+        grind
+  · expose_names
+    intro k hik hkm
+    apply h_1
+    · omega
+    · exact hkm
+
+lemma clean_row_prop_other (A : Mat n m R) (i j : ℕ) (hin : i < n) (him : i < m)
+  (hjn : j < n) (hj : ∀ c, (hc : c < m) → (i ≤ c) → Aget A ⟨j, hjn⟩ ⟨c, hc⟩ = 0) :
      ∀ c, (hc : c < m) → (i ≤ c) → Aget (clean_row A i hin him) ⟨j,hjn⟩ ⟨c,hc⟩ = 0 := by
   intro c hcm hic
   match  h : first_nonzero_i_row A i with
@@ -935,8 +972,8 @@ lemma clean_row_prop_other (A : Mat n m R) (i j: ℕ) (hin : i < n) (him : i < m
 def M : Mat 2 3 ℤ where
   Ar := #[3,0,5,6,7,8]
   hAr := by simp
-#eval M
-#eval clean_row (clean_row M 0  (by omega) (by omega)) 1 (by omega) (by omega)
+#eval (triv_LUM M)
+#eval LUM_clean_row _ (LUM_clean_row M (triv_LUM M) 0  (by omega) (by omega)) 1 (by omega) (by omega)
 
 
 

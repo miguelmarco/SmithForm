@@ -335,6 +335,10 @@ structure LUM (A : Mat n m R) : Type where
   (R : Mat m m R)
   (h : L * M * R = A)
 
+instance [Repr R] : ToString (LUM A) where
+  toString := fun D => reprStr (tomatrix D.L ) ++ "  " ++ reprStr (tomatrix D.M) ++ "  " ++ reprStr (tomatrix D.R)
+
+
 def triv_LUM (A : Mat n m R) : LUM A where
   L := frommatrix 1
   M := A
@@ -374,5 +378,7 @@ def LUM_add_multiple_row (D : LUM A) (i j : Fin n) (h : j ≠ i) (d : R) : LUM A
     nth_rewrite  2 [← neg_neg d]
     rw [mul_add_multiple_row_eq _ _ _ _ h (-d)]
     exact D.h
+
+
 
 end AMat
