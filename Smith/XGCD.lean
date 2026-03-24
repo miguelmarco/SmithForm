@@ -16,6 +16,20 @@ open AMat
 
 open EuclideanDomain
 
+lemma neg_div (x y : R) : (-y) / gcd x y  = - (y / gcd  x y) := by
+  by_cases hcas : EuclideanDomain.gcd x y = 0
+  · simp [hcas]
+  have h1 := gcd_dvd_right x y
+  choose z hz using h1
+  nth_rewrite 1 [hz]
+  nth_rewrite 3 [hz]
+  simp [mul_comm _ z,← neg_mul]
+  rw [EuclideanDomain.mul_div_assoc,EuclideanDomain.mul_div_assoc,EuclideanDomain.div_self]
+  · ring_nf
+  · exact hcas
+  · simp
+  · simp
+
 def xgcdcompu (a b : R) : R := -b / (gcd a b)
 
 def xgcdcompv (a b : R) : R := a / (gcd a b)
@@ -139,33 +153,34 @@ instance inst_ED_lt : LT R where
 
 open BigOperators
 
-instance : WellFounded (@inst_ED_lt R).lt := by
-  rw [wellFounded_iff_isEmpty_descending_chain]
-  rw [@isEmpty_subtype]
-  intro f hf
-  have hnoet : IsNoetherian R R
-  · exact isNoetherian_of_isNoetherianRing_of_finite R R
-  rw [← set_has_maximal_iff_noetherian] at hnoet
-  specialize hnoet { (Ideal.span {f n} ) | n : ℕ} ?_
-  · rw  [Set.nonempty_def]
-    use Ideal.span {f 0}
-    simp
-  choose M hM1 hM2 using hnoet
-  choose x hx using hM1
-  specialize hM2 (Ideal.span {f (x + 1)}) ?_
-  · simp
-  apply hM2
-  simp [LT.lt]
-  fconstructor
-  · rw [← hx]
-    rw [@Ideal.span_singleton_le_span_singleton]
-    specialize hf x
-    exact hf.1
-  · rw [← hx]
-    rw [@Ideal.span_singleton_le_span_singleton]
-    specialize hf x
-    apply hf.2
-
+instance : WellFoundedRelation R where
+  rel := fun a b => a < b
+  wf := by
+    rw [wellFounded_iff_isEmpty_descending_chain]
+    rw [@isEmpty_subtype]
+    intro f hf
+    have hnoet : IsNoetherian R R
+    · exact isNoetherian_of_isNoetherianRing_of_finite R R
+    rw [← set_has_maximal_iff_noetherian] at hnoet
+    specialize hnoet { (Ideal.span {f n} ) | n : ℕ} ?_
+    · rw  [Set.nonempty_def]
+      use Ideal.span {f 0}
+      simp
+    choose M hM1 hM2 using hnoet
+    choose x hx using hM1
+    specialize hM2 (Ideal.span {f (x + 1)}) ?_
+    · simp
+    apply hM2
+    simp [LT.lt]
+    fconstructor
+    · rw [← hx]
+      rw [@Ideal.span_singleton_le_span_singleton]
+      specialize hf x
+      exact hf.1
+    · rw [← hx]
+      rw [@Ideal.span_singleton_le_span_singleton]
+      specialize hf x
+      apply hf.2
 
 
 

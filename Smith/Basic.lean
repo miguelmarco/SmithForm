@@ -1,1 +1,1 @@
-import Smith.MatArray
+import Smith.Diagonalize
