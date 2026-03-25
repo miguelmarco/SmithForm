@@ -71,7 +71,7 @@ lemma pivotize_others (D : LUM A) (i : ℕ) (hin : i < n) (him : i < m) (p : ℕ
   · expose_names
     rw [pivotize.eq_def]
     simp [v,S] at h
-    simp only [ge_iff_le, mod_eq_zero, h, ↓reduceDIte]
+    simp only [mod_eq_zero, h, ↓reduceDIte]
     have haux := clean_row_column_others  _ _ i hin him p hp hc hr
     apply ih1
     · simp [S]
@@ -137,9 +137,8 @@ lemma diagonalize_prop_rows (D : LUM A) :
 
 open EuclideanDomain
 
-def transform_diagonal_dvd (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (hjn : j < n) (hjm : j < m) (hij : i ≠ j)
-  (h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0)
-  : LUM A :=
+def transform_diagonal_dvd (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (hjn : j < n)
+  (hjm : j < m) (hij : i ≠ j)(h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) : LUM A :=
   let x := Aget D.M ⟨i,hin⟩ ⟨i,him⟩
   let y := Aget D.M ⟨j,hjn⟩ ⟨j,hjm⟩
   let a := gcdA x y
@@ -147,8 +146,10 @@ def transform_diagonal_dvd (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (
   let g := gcd x y
   let u := -xgcdcompu x y
   let v := xgcdcompv x y
-  let D1 := LUM_lincom_rows _ D ⟨i,hin⟩ ⟨j,hjn⟩ 1 1 (b * -u) (a * v) (by simp [hij]) (by simp [a,b,u,v]; apply xgcdcompone; simp [x,h])
-  LUM_lincom_cols _ D1 ⟨i,him⟩ ⟨j,hjm⟩  a (b) (-u) v (by simp [hij]) (by simp [a,b,v,u];  rw [← (xgcdcompone x y (by simp [x,h]))])
+  let D1 := LUM_lincom_rows _ D ⟨i,hin⟩ ⟨j,hjn⟩ 1 1 (b * -u) (a * v) (by simp [hij])
+     (by simp [a,b,u,v]; apply xgcdcompone; simp [x,h])
+  LUM_lincom_cols _ D1 ⟨i,him⟩ ⟨j,hjm⟩  a (b) (-u) v (by simp [hij])
+     (by simp [a,b,v,u];  rw [← (xgcdcompone x y (by simp [x,h]))])
 
 lemma transform_diagonal_diagonal (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (hjn : j < n) (hjm : j < m) (hij : i ≠ j)
   (h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) (hd : is_diagonal _ D) :
@@ -181,10 +182,57 @@ lemma transform_diagonal_diagonal (D : LUM A) (i j : ℕ) (hin : i < n) (him : i
     apply xgcdcompzero
   all_goals grind
 
+lemma transform_diagonal_fix (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (hjn : j < n)
+  (hjm : j < m) (hij : i ≠ j) (h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) (r : Fin n) (c : Fin m)
+  (hd : is_diagonal _ D) (hne : ¬((r.1 = i ∧ c.1 = i ) ∨ (r.1 = j ∧ c.1 = j))) :
+    Aget (transform_diagonal_dvd _ D i j hin him hjn hjm hij h).M r c = Aget D.M r c := by
+  by_cases hcas : r.1 ≠ c.1
+  · rw [hd]
+    · rw [transform_diagonal_diagonal]
+      · exact hd
+      · exact hcas
+    · exact hcas
+  simp [transform_diagonal_dvd,def_LUM_lincom_cols,def_LUM_lincom_rows]
+  push_neg at hne
+  cases' hne with hne1 hne2
+  split_ifs
+  any_goals grind
 
+lemma transform_diagonal_gcd (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (hjn : j < n)
+  (hjm : j < m) (hij : i ≠ j) (h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) (hd : is_diagonal _ D) :
+    Aget (transform_diagonal_dvd _ D i j hin him hjn hjm hij h).M ⟨i,hin⟩ ⟨i,him⟩ =
+      gcd (Aget D.M ⟨i,hin⟩ ⟨i,him⟩) (Aget D.M ⟨j,hjn⟩ ⟨j,hjm⟩) := by
+  simp [transform_diagonal_dvd,def_LUM_lincom_cols,def_LUM_lincom_rows]
+  nth_rewrite 1 [EuclideanDomain.gcd_eq_gcd_ab]
+  simp [hd,hij,hij.symm]
+  ring
 
-
-
+lemma transform_diagonal_lcm (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (hjn : j < n)
+  (hjm : j < m) (hij : i ≠ j)(h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) (hd : is_diagonal _ D) :
+    Aget (transform_diagonal_dvd _ D i j hin him hjn hjm hij h).M ⟨j,hjn⟩ ⟨j,hjm⟩ =
+      lcm (Aget D.M ⟨i,hin⟩ ⟨i,him⟩) (Aget D.M ⟨j,hjn⟩ ⟨j,hjm⟩) := by
+  simp [transform_diagonal_dvd,def_LUM_lincom_cols,def_LUM_lincom_rows,hd,hij,hij.symm,
+    EuclideanDomain.lcm]
+  generalize hx : (Aget D.M ⟨i, hin⟩ ⟨i, him⟩) = x
+  generalize hy : (Aget D.M ⟨j, hjn⟩ ⟨j, hjm⟩) = y
+  have haux := def_xgcdcompu x y
+  have haux2 := def_xgcdcompv x y
+  have hgcd : gcd x y ≠ 0
+  · intro hneg
+    apply h
+    rw [hx]
+    have hauxg := gcd_dvd_left x y
+    simp [hneg] at hauxg
+    exact hauxg
+  nth_rewrite  8 [haux]
+  rw [EuclideanDomain.mul_div_assoc x ,EuclideanDomain.mul_div_assoc (-xgcdcompu x y)]
+  · simp [hgcd]
+    nth_rewrite 8 [haux2]
+    ring_nf
+    have hux3 := xgcdcompone x y
+    grind
+  · simp
+  · simp
 
 
 
