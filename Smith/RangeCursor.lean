@@ -1,7 +1,8 @@
 import Mathlib.Tactic
 import Std.Do
 
-variable (i m k : ℕ) (xs : [i:m].toList.Cursor)
+variable (i m k cur: ℕ) (xs : [i:m].toList.Cursor)
+variable (pref suff : List ℕ )
 
 namespace RangeCursor
 
@@ -170,6 +171,7 @@ lemma suffix0 (P S : List ℕ ) (hPN : P ++ S = (range' i m)) (h : 0 < S.length)
         simp at hm
         grind
 
+@[grind →]
 lemma cur_suf0 {i m cur : ℕ} {pref suff : List  ℕ} (h : [i + 1:m].toList = pref ++ cur :: suff) (hx0 : suff.length > 0) :
     suff[0]'(hx0) = cur + 1 := by
   simp [Std.Range.toList,eq_comm] at h
@@ -247,5 +249,32 @@ lemma suffix_in_range (xs : ([i:m].toList.Cursor)) (h : k ∈ xs.suffix) :
     i ≤ k ∧ k < m := by
   grind [mem_suf_cursor',cursor_length]
 
+lemma prefix_in_tolist {i m k cur : ℕ} {pref suff : List ℕ}
+  (h : [i:m].toList = pref ++ cur :: suff) (hi : k ∈ pref) :
+    k ≥ i ∧ k < cur ∧ k < m := by
+  have haux : k ∈ [i:m].toList
+  · rw [h]
+    simp [hi]
+  simp at haux
+  simp_all
+  grind
+
+lemma suffix_in_tolist {i m k cur : ℕ} {pref suff : List ℕ}
+  (h : [i:m].toList = pref ++ cur :: suff) (hi : k ∈ suff) :
+    k ≥ i ∧ k > cur ∧ k < m := by
+  fconstructor
+  · grind
+  fconstructor
+  · grind
+  · suffices hsuf : k ∈ [i:m].toList
+    · simp only [mem_range] at hsuf
+      exact hsuf.2
+    rw [h]
+    simp [hi]
+
+lemma current_in_tolist {i m cur : ℕ} {pref suff : List ℕ}
+  (h : [i:m].toList = pref ++ cur :: suff) :
+    cur ≥ i ∧ cur < m := by
+  grind
 
 end RangeCursor
