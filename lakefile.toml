@@ -16,3 +16,8 @@ rev = "v4.27.0-rc1"
 
 [[lean_lib]]
 name = "Smith"
+
+[[lean_exe]]
+name = "SmithFormZ"
+root = "SmithFormZ"
+moreCcArgs = ["-O3"]

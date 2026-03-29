@@ -182,6 +182,8 @@ Apply a linear combination to two rows of a LUM, respecting the product.
 -/
 def LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) : LUM A where
+  IL := lincom_rows D.IL i j u v x y
+  IR := D.IR
   L := lincom_cols D.L i j y (-x) (-v) u
   M := lincom_rows D.M i j u v x y
   R := D.R
@@ -190,12 +192,20 @@ def LUM_lincom_rows (D : LUM A) (i j : Fin n) (u v x y : R) (hij : i ≠ j)
     simp at haux
     rw [haux]
     exact D.h
+  hIL := by
+    have haux := lincom_mul D.L D.IL i j y (-x) (-v) u hij (by grind)
+    simp at haux
+    rw [haux]
+    exact D.hIL
+  hIR := D.hIR
 
 /--
 Apply a linear combination to two columns of a LUM, respecting the product.
 -/
 def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
   (h : u * y - v * x = 1) : LUM A where
+  IL := D.IL
+  IR := lincom_cols D.IR i j u v x y
   L := D.L
   M := lincom_cols D.M i j u v x y
   R := lincom_rows D.R i j y (-x) (-v) u
@@ -203,6 +213,11 @@ def LUM_lincom_cols (D : LUM A) (i j : Fin m) (u v x y : R) (hij : i ≠ j)
     have haux := lincom_mul D.M D.R i j u v x y hij h
     rw [← mul_assoc,haux,mul_assoc]
     exact D.h
+  hIL := D.hIL
+  hIR := by
+    have haux := lincom_mul D.IR D.R i j u v x y hij h
+    rw [haux]
+    exact D.hIR
 
 /--
 The entries for the result of `LUM_lincom_cols`.

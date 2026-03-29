@@ -546,4 +546,25 @@ lemma fix_diagonal_dvd (D : LUM A) (hd : is_diagonal _ D) :
 
 def SmithForm (A : Mat n m R) : LUM A := fix_diagonal A (diagonalize A (triv_LUM A))
 
+theorem SmithFormDiagonal (A : Mat n m R) : is_diagonal _ (SmithForm A) := by
+  unfold SmithForm
+  apply fix_diagonal_diagonal
+  exact diagonalize_prop_rows A (triv_LUM A)
+
+theorem SmithFormdvd (A : Mat n m R) (i j : ℕ) (hi : i < j) (hjn : j < n) (hjm : j < m) :
+    Aget (SmithForm A).M ⟨i,by omega⟩ ⟨i,by omega⟩ ∣ Aget (SmithForm A).M ⟨j, hjn⟩ ⟨j, hjm⟩ := by
+  unfold SmithForm
+  apply fix_diagonal_dvd
+  · apply diagonalize_prop_rows
+  · exact hi
+
+theorem SmithForm_eq (A : Mat n m R) : (SmithForm A).L * (SmithForm A).M * (SmithForm A).R = A :=
+  (SmithForm A).h
+
+theorem SmithForm_IL (A : Mat n m R) : (SmithForm A).L * (SmithForm A).IL = frommatrix 1 :=
+  (SmithForm A).hIL
+
+theorem SmithForm_IR (A : Mat n m R) : (SmithForm A).IR * (SmithForm A).R = frommatrix 1 :=
+  (SmithForm A).hIR
+
 end AMat

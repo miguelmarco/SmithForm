@@ -330,16 +330,22 @@ lemma mul_add_multiple_row_eq (A : Mat n m R) (B : Mat m l R) (i j : Fin m) (h :
       simp [hx]
 
 structure LUM (A : Mat n m R) : Type where
+  (IL: Mat n n R)
+  (IR : Mat m m R)
   (L : Mat n n R)
   (M : Mat n m R)
   (R : Mat m m R)
   (h : L * M * R = A)
+  (hIL : L * IL = frommatrix 1)
+  (hIR : IR * R = frommatrix 1)
 
 instance [Repr R] : ToString (LUM A) where
-  toString := fun D => reprStr (tomatrix D.L ) ++ "  " ++ reprStr (tomatrix D.M) ++ "  " ++ reprStr (tomatrix D.R)
+  toString := fun D => reprStr (tomatrix D.IL) ++ "  " ++ reprStr (tomatrix D.L ) ++ "  " ++ reprStr (tomatrix D.M) ++ "  " ++ reprStr (tomatrix D.R) ++ "  " ++ reprStr (tomatrix D.IR)
 
 
 def triv_LUM (A : Mat n m R) : LUM A where
+  IL := frommatrix 1
+  IR := frommatrix 1
   L := frommatrix 1
   M := A
   R := frommatrix 1
@@ -348,29 +354,54 @@ def triv_LUM (A : Mat n m R) : LUM A where
     · simp [mul_hom']
     · intro a b hab
       rw [← fromtomatrix a, ← fromtomatrix b, hab]
+  hIL := by
+    apply_fun tomatrix
+    · simp [mul_hom']
+    · intro a b hab
+      rw [← fromtomatrix a, ← fromtomatrix b, hab]
+  hIR := by
+    apply_fun tomatrix
+    · simp [mul_hom']
+    · intro a b hab
+      rw [← fromtomatrix a, ← fromtomatrix b, hab]
 
 def LUM_swap_row (D : LUM A) (i j : Fin n) : LUM A where
+  IL := swap_row D.IL i j
+  IR := D.IR
   L := swap_col D.L i j
   M := swap_row D.M i j
   R := D.R
   h := by
     rw [@mul_swap_row_col,D.h]
+  hIL := by
+    rw [@mul_swap_row_col,D.hIL]
+  hIR := D.hIR
 
 def LUM_swap_col (D : LUM A) (i j : Fin m) : LUM A where
+  IL := D.IL
+  IR := swap_col D.IR i j
   L := D.L
   M := swap_col D.M i j
   R := swap_row D.R i j
   h := by rw [← mul_assoc, mul_swap_row_col, mul_assoc,D.h]
+  hIL := D.hIL
+  hIR := by rw [mul_swap_row_col,D.hIR]
 
 def LUM_add_multiple_col (D : LUM A) (i j : Fin m) (h : i ≠ j) (d : R) : LUM A where
+  IL := D.IL
+  IR := add_multiple_col D.IR i j d
   L := D.L
   M := add_multiple_col D.M i j d
   R := add_multiple_row D.R j i (-d)
   h := by
     rw [← mul_assoc,mul_add_multiple_row_eq _ _ _ _ h,mul_assoc]
     exact D.h
+  hIL := D.hIL
+  hIR := by rw [mul_add_multiple_row_eq _ _ _ _ h,D.hIR]
 
 def LUM_add_multiple_row (D : LUM A) (i j : Fin n) (h : j ≠ i) (d : R) : LUM A where
+  IL := add_multiple_row D.IL i j d
+  IR := D.IR
   L := add_multiple_col D.L j i (-d)
   M := add_multiple_row D.M i j d
   R := D.R
@@ -378,7 +409,10 @@ def LUM_add_multiple_row (D : LUM A) (i j : Fin n) (h : j ≠ i) (d : R) : LUM A
     nth_rewrite  2 [← neg_neg d]
     rw [mul_add_multiple_row_eq _ _ _ _ h (-d)]
     exact D.h
-
-
+  hIL := by
+    nth_rewrite  2 [← neg_neg d]
+    rw [mul_add_multiple_row_eq _ _ _ _ h (-d)]
+    exact D.hIL
+  hIR := D.hIR
 
 end AMat
