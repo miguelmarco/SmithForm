@@ -6,6 +6,7 @@ import Mathlib.Algebra.Field.Defs
 import Mathlib.Algebra.EuclideanDomain.Defs
 import Mathlib.Tactic
 import Smith.RangeCursor
+import Mathlib.Algebra.Group.Defs
 
 namespace APolynomial
 
@@ -19,6 +20,18 @@ def clean_zeros (A : Array F) : Array F :=
   else
     A
 termination_by A.size
+
+lemma clean_zeros_size (A : Array F) (hA : A.getD (A.size - 1) 0 ≠ 0) : clean_zeros A = A := by
+  unfold clean_zeros
+  simp_all only [Array.getD_eq_getD_getElem?, ne_eq, Array.size_eq_zero_iff]
+  split_ifs with h1 h2
+  · tauto
+  · exfalso
+    apply hA
+    have haux : A.size -1 < A.size
+    · grind
+    simp [haux,h2]
+  · rfl
 
 lemma clean_zeros_prop (A : Array F) :
     clean_zeros A = #[] ∨ (clean_zeros A).getD ((clean_zeros A).size -1) 0 ≠ 0 := by
@@ -59,7 +72,7 @@ lemma clean_zeros_prop (A : Array F) :
         · omega
         · exact hcas2
 
- lemma clean_zeros_eq (A : Array F) (i : ℕ) : A.getD i 0 = (clean_zeros A).getD i 0 := by
+lemma clean_zeros_eq (A : Array F) (i : ℕ) : A.getD i 0 = (clean_zeros A).getD i 0 := by
   generalize hn : A.size = n
   revert hn A
   induction' n with n hind
@@ -97,6 +110,50 @@ structure Poly (F : Type) [Field F] [DecidableEq F] : Type where
 ( Ar : Array F)
 ( hAr : Ar = #[] ∨ Ar.getD (Ar.size - 1) 0 ≠ 0)
 
+lemma eq_poly (A B : Poly F) : A = B ↔ A.Ar = B.Ar := by
+  fconstructor
+  · tauto
+  · intro h
+    ext n ha hb
+    · rw [h]
+    · simp [h]
+
+lemma eq_poly' (A B : Poly F) (h : ∀ n, A.Ar.getD n 0 = B.Ar.getD n 0) : A = B := by
+  have h1 := A.hAr
+  have h2 := B.hAr
+  rw [eq_poly]
+  cases' h1 with h1 h1
+  · cases' h2 with h2 h2
+    · simp [h1,h2]
+    · rw [h1]
+      specialize h (B.Ar.size -1)
+      simp [h1] at h
+      simp [Array.getD_getElem?] at h h2
+      choose hb hb2 using h2
+      specialize h hb
+      tauto
+  · cases' h2 with h2 h2
+    · rw [h2]
+      specialize h (A.Ar.size -1)
+      simp [h2] at h
+      simp [Array.getD_getElem?] at h h1
+      choose hb hb2 using h1
+      specialize h hb
+      tauto
+    · ext
+      · by_contra hneg
+        wlog hl : A.Ar.size < B.Ar.size
+        · specialize this B A
+          apply this ?_ h2 h1
+          · tauto
+          · omega
+          · simp [h]
+        · grind
+      · expose_names
+        specialize h i
+        simp_all
+
+
 def to_polynomial (A : Poly F) : Polynomial F := by
   fconstructor
   fconstructor
@@ -133,34 +190,34 @@ def from_polynomial (A : Polynomial F) : Poly F := by
   }
 
 
-  lemma to_from_poly (A : Polynomial F) : to_polynomial (from_polynomial A) = A := by
-    simp [to_polynomial,from_polynomial]
-    ext n
-    simp
-    let d := A.degree
-    have hd : A.degree = d := rfl
-    split
-    · expose_names
-      rw [Polynomial.coeff_eq_zero_of_degree_lt]
-      simp
-      rw [heq]
+lemma to_from_poly (A : Polynomial F) : to_polynomial (from_polynomial A) = A := by
+  simp [to_polynomial,from_polynomial]
+  ext n
+  simp
+  let d := A.degree
+  have hd : A.degree = d := rfl
+  split
+  · expose_names
+    rw [Polynomial.coeff_eq_zero_of_degree_lt]
+    · simp
+    · rw [heq]
       exact compareOfLessAndEq_eq_lt.mp rfl
-    · expose_names
+  · expose_names
+    simp_all
+    by_cases hcas : n < deg + 1
+    · simp [hcas]
+    · simp [hcas]
+      rw [Polynomial.coeff_eq_zero_of_degree_lt]
       simp_all
-      by_cases hcas : n < deg + 1
-      · simp [hcas]
-      · simp [hcas]
-        rw [Polynomial.coeff_eq_zero_of_degree_lt]
-        simp_all
-        rw [← hd_1]
-        have haux : deg < n := by omega
-        refine WithBot.lt_iff_exists.mpr ?_
-        use n
-        fconstructor
-        · rfl
-        · intro a ha
-          cases ha
-          exact haux
+      rw [← hd_1]
+      have haux : deg < n := by omega
+      refine WithBot.lt_iff_exists.mpr ?_
+      use n
+      fconstructor
+      · rfl
+      · intro a ha
+        cases ha
+        exact haux
 
 lemma from_to_poly (A : Poly F) : from_polynomial (to_polynomial A) = A := by
   simp [from_polynomial,to_polynomial]
@@ -230,11 +287,13 @@ def add_arrays (a b : Array F) : Array F := Id.run do
       res := res.push ((a.getD i 0) + (b.getD i 0))
     return (clean_zeros res)
 
-lemma add_arrays_prop (a b : Array F) (i : ℕ) : (add_arrays a b).getD i 0 = a.getD i 0 + b.getD i 0 := by
+lemma add_arrays_prop (a b : Array F) (i : ℕ) :
+    (add_arrays a b).getD i 0 = a.getD i 0 + b.getD i 0 := by
   generalize h : add_arrays a b = res
   apply Id.of_wp_run_eq h
   mvcgen invariants
-  · ⇓⟨xs, letMuts⟩ =>  ⌜letMuts.size = xs.prefix.length ∧  ∀ c ∈ xs.prefix, letMuts.getD c 0 = a.getD c 0 + b.getD c 0⌝
+  · ⇓⟨xs, letMuts⟩ =>  ⌜letMuts.size = xs.prefix.length ∧
+      ∀ c ∈ xs.prefix, letMuts.getD c 0 = a.getD c 0 + b.getD c 0⌝
   with mleave
   · expose_names
     fconstructor
@@ -273,13 +332,104 @@ lemma add_prop (a b : Poly F) (i : ℕ) : (add a b).Ar.getD i 0 = a.Ar.getD i 0 
 instance inst_Add : Add (Poly F) where
   add := add
 
-lemma add_to_polynomial (a b : Poly F) : to_polynomial (a + b) = to_polynomial a + to_polynomial b := by
+@[simp]
+lemma def_add (a b : Poly F) (i : ℕ) : (a + b).Ar.getD i 0 = a.Ar.getD i 0 + b.Ar.getD i 0 := by
+  apply add_prop
+
+lemma add_to_polynomial (a b : Poly F) :
+    to_polynomial (a + b) = to_polynomial a + to_polynomial b := by
   ext n
   simp only [to_polynomial, ne_eq, decide_not, List.toFinset_filter,
     Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, Polynomial.coeff_ofFinsupp,
     Finsupp.coe_mk, Polynomial.coeff_add]
   apply add_prop
 
+def sub_array (a b : Array F) : Array F := Id.run do
+    let m := max a.size b.size
+    let mut res := (Array.emptyWithCapacity m : Array F)
+    for i in [:m] do
+      res := res.push ((a.getD i 0) - (b.getD i 0))
+    return (clean_zeros res)
+
+lemma sub_arrays_prop (a b : Array F) (i : ℕ) :
+    (sub_array a b).getD i 0 = a.getD i 0 - b.getD i 0 := by
+  generalize h : sub_array a b = res
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>  ⌜letMuts.size = xs.prefix.length ∧
+      ∀ c ∈ xs.prefix, letMuts.getD c 0 = a.getD c 0 - b.getD c 0⌝
+  with mleave
+  · expose_names
+    fconstructor
+    · grind
+    · intro c hc
+      simp at hc
+      cases' h_2 with h2 h3
+      cases' hc with hc hc
+      · specialize h3 c hc
+        have hc2 : c < b_1.size
+        · grind
+        simp
+        rw [Array.getElem?_push_lt]
+        simp at h3
+        rw [← h3]
+        grind
+        exact hc2
+      · have hc2 : c = b_1.size
+        · grind
+        simp [← hc,hc2]
+  · grind
+  · expose_names
+    rw [← clean_zeros_eq]
+    grind
+
+def sub (a b : Poly F) : Poly F where
+  Ar := sub_array a.Ar b.Ar
+  hAr := by
+    apply clean_zeros_prop
+
+lemma sub_prop (a b : Poly F) (i : ℕ) : (sub a b).Ar.getD i 0 = a.Ar.getD i 0 - b.Ar.getD i 0 := by
+  simp only [sub,sub_arrays_prop]
+
+instance instSub : Sub (Poly F) where
+  sub := sub
+
+@[simp]
+lemma def_sub (a b : Poly F) (i : ℕ) : (a - b).Ar.getD i 0 = a.Ar.getD i 0 - b.Ar.getD i 0 := by
+  apply sub_prop
+
+lemma sub_to_polynomial (a b : Poly F) :
+    to_polynomial (a - b) = to_polynomial a - to_polynomial b := by
+  ext n
+  simp only [to_polynomial, ne_eq, decide_not, List.toFinset_filter,
+    Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not, Polynomial.coeff_ofFinsupp,
+    Finsupp.coe_mk, Polynomial.coeff_sub]
+  apply sub_prop
+
+def neg (p : Poly F) : Poly F := {
+      Ar := p.Ar.map (fun x => -x)
+      hAr := by
+        have hAr := p.hAr
+        cases' hAr with hAr hAr
+        · left
+          simp [hAr]
+        · right
+          simp  [Array.size_map,Array.getElem?_map,Option.map]
+          split
+          · simp_all
+          · simp_all
+  }
+
+lemma neg_prop (a : Poly F) (i : ℕ) : (neg a).Ar.getD i 0 = - a.Ar.getD i 0 := by
+  simp only [neg, Array.getD_eq_getD_getElem?, Array.getElem?_map,Option.map]
+  grind
+
+instance instNeg : Neg (Poly F) where
+  neg := neg
+
+@[simp]
+lemma def_neg (a : Poly F) (i : ℕ) : (-a).Ar.getD i 0 = - a.Ar.getD i 0 := by
+  apply neg_prop
 
 instance inst_Zero : Zero (Poly F) where
   zero := {
@@ -299,21 +449,25 @@ lemma zero_to_polynomial : to_polynomial (0 : Poly F) = 0 := by
 
 def mul_ar (a b : Array F) : Array F := Id.run do
     let s := a.size + b.size - 1
-    let mut res := (Array.emptyWithCapacity s : Array F)
-    for i in [:s+1] do
+    let mut res := (Array.emptyWithCapacity (s) : Array F)
+    for i in [:s] do
       let mut pres := (0 : F)
       for j in [:i+1] do
         pres := pres + (a.getD j 0) * (b.getD (i - j) 0)
       res := res.push pres
     return (clean_zeros res)
 
-lemma def_mul (a b : Array F) (n : ℕ) : (mul_ar a b).getD n 0 = ∑ (i : Fin (n + 1)), (a.getD i 0) * (b.getD (n - i) 0) := by
+
+lemma def_mul (a b : Array F) (n : ℕ) :
+    (mul_ar a b).getD n 0 = ∑ (i : Fin (n + 1)), (a.getD i 0) * (b.getD (n - i) 0) := by
   generalize h : mul_ar a b = res
   apply Id.of_wp_run_eq h
   mvcgen invariants
   · ⇓⟨xs, letMuts⟩ =>
-    ⌜letMuts.size = xs.prefix.length ∧  ∀ c ∈ xs.prefix, letMuts.getD c 0 = ∑ (i : Fin (c +1)), a.getD (↑i) 0 * b.getD (c - ↑i) 0⌝
-  · ⇓⟨xs, letMuts⟩ => ⌜(letMuts = ∑ (j ∈ xs.prefix.toFinset), (a.getD j 0) * (b.getD (xs.prefix.length + xs.suffix.length - 1 - j) 0))⌝
+    ⌜letMuts.size = xs.prefix.length ∧
+      ∀ c ∈ xs.prefix, letMuts.getD c 0 = ∑ (i : Fin (c +1)), a.getD (↑i) 0 * b.getD (c - ↑i) 0⌝
+  · ⇓⟨xs, letMuts⟩ => ⌜(letMuts = ∑ (j ∈ xs.prefix.toFinset), (a.getD j 0) *
+        (b.getD (xs.prefix.length + xs.suffix.length - 1 - j) 0))⌝
   with mleave
   · expose_names
     rw [h_4]
@@ -354,7 +508,8 @@ lemma def_mul (a b : Array F) (n : ℕ) : (mul_ar a b).getD n 0 = ∑ (i : Fin (
           · grind
           simp [haux]
           simp [h_3,← haux]
-          suffices hsuf : ∑ x ∈ [:cur+1].toList.toFinset, a[x]?.getD 0 * b[cur - x]?.getD 0 = ∑ x ∈ (Set.univ : Set (Fin (cur+1))), a[↑x]?.getD 0 * b[cur - ↑x]?.getD 0
+          suffices hsuf : ∑ x ∈ [:cur+1].toList.toFinset, a[x]?.getD 0 * b[cur - x]?.getD 0 =
+              ∑ x ∈ (Set.univ : Set (Fin (cur+1))), a[↑x]?.getD 0 * b[cur - ↑x]?.getD 0
           · simp_all
           by_cases hcas : cur = 0
           · cases hcas
@@ -380,7 +535,7 @@ lemma def_mul (a b : Array F) (n : ℕ) : (mul_ar a b).getD n 0 = ∑ (i : Fin (
     rw [← clean_zeros_eq]
     cases' h_1 with h1 h2
     simp at h1
-    by_cases hcas : n ≥ (s +1)
+    by_cases hcas : n ≥ (s )
     · simp [hcas,h1]
       rw [Finset.sum_eq_zero]
       · intro x hx
@@ -395,6 +550,55 @@ lemma def_mul (a b : Array F) (n : ℕ) : (mul_ar a b).getD n 0 = ∑ (i : Fin (
       specialize h2 n hcas
       simp [h2]
 
+
+lemma mul_ar_len (a b : Array F) (ha : a.getD (a.size -1) 0 ≠ 0) (hb : b.getD (b.size -1) 0 ≠ 0) :
+    (mul_ar a b).size = a.size + b.size - 1 := by
+  have haux := def_mul a b (a.size + b.size - 1 - 1)
+  unfold mul_ar
+  simp
+  rw [clean_zeros_size]
+  · simp only [List.size_toArray, List.length_append, List.length_map, List.length_range',List.length_cons, List.length_nil]
+  · rw [clean_zeros_eq]
+    simp [mul_ar] at haux
+    simp [haux]
+    have haux : (fun (x : Fin (a.size + b.size - 1 - 1 + 1)) =>
+                  a[x.1]?.getD 0 * b[a.size + b.size - 1 - 1 - x.1]?.getD 0 ) =
+                 fun (x : Fin (a.size + b.size - 1 - 1 + 1)) =>
+                    if x.1 = a.size - 1 then a[a.size - 1]?.getD 0 *
+                      b[a.size + b.size - 1 - 1 - (a.size -1)]?.getD 0 else 0
+    · ext x
+      split_ifs with hx
+      · simp [hx]
+      · by_cases hcas : x ≥ a.size
+        · simp [hcas]
+        · have hb : a.size + b.size - 1 - 1 - ↑x ≥ b.size
+          · have hx2 := x.2
+            omega
+          simp [hb]
+    rw [haux,Finset.sum_ite]
+    simp
+    have hcard : ({x | ↑x = a.size - 1} : Finset (Fin (a.size + b.size - 1 - 1 + 1))).card  = 1
+    · rw [Finset.card_eq_one]
+      fconstructor
+      · fconstructor
+        · exact a.size -1
+        · suffices hsuf : b.size ≠ 0
+          · omega
+          grind
+      · grind
+    rw [hcard]
+    simp
+    fconstructor
+    · simp at ha
+      exact ha
+    · suffices hsuf : a.size + b.size - 1 - 1 - (a.size - 1) = b.size -1
+      · rw [hsuf]
+        simp at hb
+        exact hb
+      · suffices hsuf : a.size ≠ 0 ∧ b.size ≠ 0
+        · grind
+        grind
+
 def mul (a b : Poly F) : Poly F where
   Ar := mul_ar a.Ar b.Ar
   hAr := by
@@ -404,17 +608,14 @@ def mul (a b : Poly F) : Poly F where
 instance inst_mul : Mul (Poly F) where
   mul := mul
 
-def M : Poly ℚ where
-  Ar := #[1,0,3]
-  hAr := by simp
-
-#eval M * M
-
-lemma def_mul' (a b : Poly F) (n : ℕ) : (a * b).Ar.getD n 0 = ∑ (i : Fin (n+1)), (a.Ar.getD i 0) * (b.Ar.getD (n - i) 0) := by
+@[simp]
+lemma def_mul' (a b : Poly F) (n : ℕ) : (a * b).Ar.getD n 0 =
+    ∑ (i : Fin (n+1)), (a.Ar.getD i 0) * (b.Ar.getD (n - i) 0) := by
   have haux : (a*b).Ar = mul_ar a.Ar b.Ar := rfl
   rw [haux,def_mul]
 
-lemma mul_to_polynomial (a b : Poly F) : to_polynomial (a * b) = to_polynomial a * to_polynomial b := by
+lemma mul_to_polynomial (a b : Poly F) :
+    to_polynomial (a * b) = to_polynomial a * to_polynomial b := by
   ext n
   rw [def_to_polynomial,def_mul']
   unfold to_polynomial
@@ -449,6 +650,17 @@ instance inst_one : One (Poly F) where
     hAr := by simp
   }
 
+lemma def_one : (1 : Poly F) = {
+    Ar := #[1]
+    hAr := by simp
+  } := rfl
+
+@[simp]
+lemma def_one' (i : ℕ) : (1 : Poly F).Ar.getD i 0 = if i = 0 then 1 else 0 := by
+  by_cases hcas : i = 0
+  · simp [def_one,hcas]
+  · simp [def_one,hcas]
+
 lemma one_to_polynomial : to_polynomial (1 : Poly F) = 1 := by
   ext n
   simp only [to_polynomial,ne_eq, decide_not, List.toFinset_filter,
@@ -471,7 +683,8 @@ def monomioar (n : ℕ) (c : F) : List F :=
   | 0 => [c]
   | n + 1 => 0 :: monomioar n c
 
-lemma def_monomioar {n : ℕ } {c : F} (i : ℕ): (monomioar n c).getD i 0 = if i = n then c else 0 := by
+lemma def_monomioar {n : ℕ } {c : F} (i : ℕ) :
+    (monomioar n c).getD i 0 = if i = n then c else 0 := by
   revert i
   induction' n with n hind
   · simp [monomioar]
@@ -531,15 +744,12 @@ lemma monomio_deg_zero (c : F) : monomio 0 c =
       · right
         simp [h1]
   } := by
-  ext
-  · simp [monomio]
-    split_ifs with h1
-    · simp [h1,clean_zeros]
-    · simp [monomioar,clean_zeros,h1]
-  · expose_names
-    simp [monomio]
-    simp [clean_zeros,monomioar]
+  rw [eq_poly]
+  expose_names
+  simp [monomio]
+  simp [clean_zeros,monomioar]
 
+@[simp]
 lemma def_monomio (n i : ℕ) (c : F) : (monomio n c).Ar.getD i 0 = if i = n then c else 0 := by
   simp [monomio]
   split_ifs with h1 h2 h3
@@ -588,41 +798,57 @@ def shift_mul (P : Poly F) (n : ℕ ) (c : F) : Poly F where
         rw [hn] at hneg
         grind
 
+
 lemma mul_monom_eq_shift_mul (P : Poly F) (n : ℕ) (c : F) : P * monomio n c = shift_mul P n c := by
-  unfold monomio shift_mul
-  split_ifs with h1
-  · simp [h1]
-    apply to_poly_inj
-    rw [mul_to_polynomial]
-    rw [← def_zero,zero_to_polynomial]
-    simp
-    rw [← zero_to_polynomial,def_zero]
-    congr
-  · simp [h1]
-    by_cases hcas : P = 0
-    · simp [hcas]
+  apply eq_poly'
+  intro m
+  rw [shift_mul]
+  simp only [Array.emptyWithCapacity_eq, bind_pure_comp, map_pure,
+    RangeCursor.mem_range', zero_le, true_and, forIn'_eq_forIn, Std.Range.forIn_eq_forIn_range',
+    Std.Range.size, tsub_zero, add_tsub_cancel_right, Nat.div_one, List.forIn_pure_yield_eq_foldl,
+    List.foldl_push_eq_append, List.map_const', List.length_range', List.toArray_replicate,
+    Array.empty_append, Array.forIn_pure_yield_eq_foldl, Array.foldl_push_eq_append, bind_pure,
+    dite_eq_ite]
+  split_ifs with hi
+  · cases' hi with hi hi
+    · simp [hi,monomio_zero,Array.getD_getElem?,Id.run]
+      suffices hsuf : P * 0 = 0
+      · simp [hsuf]
+        simp [def_zero]
       apply to_poly_inj
-      simp [mul_to_polynomial,zero_to_polynomial]
-      simp [def_zero,←zero_to_polynomial]
+      rw [mul_to_polynomial,zero_to_polynomial]
+      simp
+    · rw [def_mul']
+      simp [hi,Id.run]
+  · rw [def_mul' ]
+    have haux := @def_monomio F _ _ n
+    have haux2 : ∑ (i : Fin (m +1)), P.Ar.getD (↑i) 0 * (monomio n c).Ar.getD (m - ↑i) 0 = ∑ (i : Fin (m + 1)), (P.Ar.getD (↑i) 0) * (if (m - ↑i) = n then c else 0)
+    · congr
+      ext i
       congr
-    · have haux : P.Ar ≠ #[]
-      · simp [def_zero] at hcas
-        intro hneg
-        apply hcas
-        ext
-        simp [hneg]
-        simp_all
-      simp [haux]
-      unfold monomioar
+      rw [def_monomio]
+    rw [haux2]
+    simp
+    by_cases hcas : m < n
+    · rw [Array.getElem?_append_left]
+      simp [Array.getElem?_replicate]
+      simp [hcas]
+      apply Finset.sum_eq_zero
+      simp
+      intro x hx
+      left
+      omega
+      grind
+    · rw [Array.getElem?_append_right,Array.getElem?_map,Array.size_replicate]
+      · rw [Finset.sum_eq_ite ⟨m-n, by omega⟩]
+        · simp
+          grind
+        · grind
+      · grind
 
-
-
-
-
-
-
-
-
+def npow (n : ℕ) (p : Poly F) :  (Poly F) := match n with
+| 0 => 1
+| n + 1 => npow n p * p
 
 instance inst_ring : Ring (Poly F) where
   add_assoc := by
@@ -639,49 +865,95 @@ instance inst_ring : Ring (Poly F) where
     intro a
     apply to_poly_inj
     simp [add_to_polynomial,zero_to_polynomial]
-  nsmul := fun  n p => (monomio 1 (n : F)) * p
-  nsmul_zero := by
-    intro x
-    simp [monomio_zero]
-    apply to_poly_inj
-    rw [mul_to_polynomial,zero_to_polynomial,zero_mul]
+  nsmul := nsmulRec
+  nsmul_zero := fun x ↦ Poly.ext rfl
   nsmul_succ := by
-    intro n
-    suffices hsuf :
-      monomio 1 (n + 1 : F) = (monomio 1 (n : F)) + (1 : Poly F)
-      · intro x
-        rw [hsuf]
-
-    intro p
+    exact fun n x ↦ Poly.ext rfl
+  add_comm := by
+    intro a b
     apply to_poly_inj
-    rw [mul_to_polynomial,add_to_polynomial]
-  add_comm := _
-  mul := _
-  left_distrib := _
-  right_distrib := _
-  zero_mul := _
-  mul_zero := _
-  mul_assoc := _
-  one := _
-  one_mul := _
-  mul_one := _
-  natCast := _
-  natCast_zero := _
-  natCast_succ := _
-  npow := _
-  npow_zero := _
-  npow_succ := _
-  neg := _
-  sub := _
-  sub_eq_add_neg := _
-  zsmul := _
-  zsmul_zero' := _
-  zsmul_succ' := _
-  zsmul_neg' := _
-  neg_add_cancel := _
-  intCast := _
-  intCast_ofNat := _
-  intCast_negSucc := _
-
+    simp [add_to_polynomial]
+    apply add_comm
+  left_distrib := by
+    intro a b c
+    apply to_poly_inj
+    simp [add_to_polynomial,mul_to_polynomial]
+    apply left_distrib
+  right_distrib := by
+    intro a b c
+    apply to_poly_inj
+    simp [add_to_polynomial,mul_to_polynomial]
+    apply right_distrib
+  zero_mul := by
+    intro a
+    apply to_poly_inj
+    simp [zero_to_polynomial,mul_to_polynomial]
+  mul_zero := by
+    intro a
+    apply to_poly_inj
+    simp [zero_to_polynomial,mul_to_polynomial]
+  mul_assoc := by
+    intro a b  c
+    apply to_poly_inj
+    simp [mul_to_polynomial]
+    apply mul_assoc
+  one_mul := by
+    intro a
+    apply to_poly_inj
+    simp [mul_to_polynomial,one_to_polynomial]
+  mul_one := by
+    intro a
+    apply to_poly_inj
+    simp [mul_to_polynomial,one_to_polynomial]
+  natCast := fun n => monomio 0 n
+  natCast_zero := by
+    apply eq_poly'
+    intro n
+    simp [monomio,def_zero]
+  natCast_succ := by
+    intro n
+    apply eq_poly'
+    intro i
+    rw [def_monomio,def_add,def_monomio]
+    split_ifs with h1
+    · rw [h1,def_one']
+      simp
+    simp [def_one,h1]
+  npow := npow
+  npow_zero := by
+    intro x
+    rfl
+  npow_succ := by
+    intro n x
+    rfl
+  sub_eq_add_neg := by
+    intro a b
+    apply eq_poly'
+    intro i
+    rw [def_sub,def_add,def_neg,sub_eq_add_neg]
+  zsmul :=zsmulRec
+  zsmul_zero' := fun p => Poly.ext rfl
+  zsmul_succ' := fun n a ↦ Poly.ext rfl
+  zsmul_neg' := fun n a ↦ Poly.ext rfl
+  neg_add_cancel := by
+    intro a
+    apply eq_poly'
+    intro n
+    rw [def_add,def_neg,neg_add_cancel,def_zero]
+    grind
+  intCast := fun n => monomio 0 n
+  intCast_ofNat := by
+    intro n
+    apply eq_poly'
+    intro i
+    simp [monomio]
+    grind
+  intCast_negSucc := by
+    intro n
+    apply eq_poly'
+    intro i
+    rw [def_neg]
+    simp [monomio,monomioar,Nat.cast]
+    grind
 
 end APolynomial
