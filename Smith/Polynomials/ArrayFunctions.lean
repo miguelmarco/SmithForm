@@ -130,12 +130,75 @@ lemma clean_zeros_eq (A : Array F) (i : ℕ) : A.getD i 0 = (clean_zeros A).getD
     · unfold clean_zeros
       simp [hA,hcas]
 
+@[simp]
+lemma getD_replicate_append (i n : ℕ) (A : Array F) :
+    getD ((replicate n 0) ++ A) i 0  = if i < n then 0 else A.getD (i - n) 0 := by
+  by_cases hcas : i < n
+  · simp [hcas]
+    rw [getElem?_append_left,getElem?_replicate]
+    · simp [hcas]
+    · rw [size_replicate]
+      exact hcas
+  · simp [hcas]
+    rw [getElem?_append_right,size_replicate]
+    rw [size_replicate]
+    omega
+
+@[simp]
+lemma getD_replicate_append' (i n : ℕ) (A : Array F) :
+    getD ((replicate (n + 1) 0) ++ A) i 0  = if i < n then 0 else if n = i then 0 else A.getD (i - (n + 1)) 0 := by
+  simp
+  split_ifs with h1 h2
+  · rw [getElem?_append_left,getElem?_replicate]
+    · have haux : i < n + 1 := by omega
+      simp [haux]
+    · rw [size_replicate]
+      omega
+  · cases h2
+    rw [getElem?_append_left]
+    · grind
+    · grind
+  · rw [getElem?_append_right]
+    · simp
+    · simp
+      omega
+
+@[simp]
+lemma getD_replicate_pop_append (i n : ℕ) (c : F) (A : Array F) :
+    getD (((replicate n 0).push c) ++ A) i 0  = if i < n then 0 else if i = n then c else A.getD (i - n - 1) 0 := by
+  rw [push_eq_append,append_assoc,getD_replicate_append]
+  split_ifs with h1 h2
+  · rfl
+  · simp [h2]
+  · simp
+    rw [getElem?_append_right]
+    · simp
+    · simp
+      omega
+
+@[simp]
+lemma getD_replicate_push (i n : ℕ) (c : F):
+    getD ((replicate n 0).push c) i 0 = if i = (n) then c else 0 := by
+  rw [push_eq_append,getD_replicate_append]
+  split_ifs with h1 h2 h3
+  · omega
+  · rfl
+  · simp [h3]
+  · grind
+
+@[simp]
+lemma getD_replicate_zero (i n : ℕ) : (replicate n (0 : F))[i]?.getD 0 = 0 := by
+  grind
+
 def add_arrays (a b : Array F) : Array F := Id.run do
     let m := max a.size b.size
     let mut res := (Array.emptyWithCapacity m : Array F)
     for i in [:m] do
       res := res.push ((a.getD i 0) + (b.getD i 0))
-    return (clean_zeros res)
+    return res
+
+lemma add_arrays_size (a b : Array F) : (add_arrays a b).size = max a.size b.size := by
+  simp [add_arrays]
 
 lemma add_arrays_prop (a b : Array F) (i : ℕ) :
     (add_arrays a b).getD i 0 = a.getD i 0 + b.getD i 0 := by
@@ -165,9 +228,7 @@ lemma add_arrays_prop (a b : Array F) (i : ℕ) :
         · grind
         simp [← hc,hc2]
   · grind
-  · expose_names
-    rw [← clean_zeros_eq]
-    grind
+  · grind
 
 def sub_array (a b : Array F) : Array F := Id.run do
     let m := max a.size b.size
@@ -217,7 +278,7 @@ def mul_ar (a b : Array F) : Array F := Id.run do
       for j in [:i+1] do
         pres := pres + (a.getD j 0) * (b.getD (i - j) 0)
       res := res.push pres
-    return (clean_zeros res)
+    return res
 
 
 lemma def_mul (a b : Array F) (n : ℕ) :
@@ -294,7 +355,7 @@ lemma def_mul (a b : Array F) (n : ℕ) :
   · expose_names
     simp [res_1]
   · expose_names
-    rw [← clean_zeros_eq]
+    -- rw [← clean_zeros_eq]
     cases' h_1 with h1 h2
     simp at h1
     by_cases hcas : n ≥ (s )
@@ -313,8 +374,11 @@ lemma def_mul (a b : Array F) (n : ℕ) :
       simp [h2]
 
 
-lemma mul_ar_len (a b : Array F) (ha : a.getD (a.size -1) 0 ≠ 0) (hb : b.getD (b.size -1) 0 ≠ 0) :
+lemma mul_ar_len (a b : Array F) :
     (mul_ar a b).size = a.size + b.size - 1 := by
+  simp [mul_ar]
+
+/-
   have haux := def_mul a b (a.size + b.size - 1 - 1)
   unfold mul_ar
   simp
@@ -360,6 +424,8 @@ lemma mul_ar_len (a b : Array F) (ha : a.getD (a.size -1) 0 ≠ 0) (hb : b.getD 
       · suffices hsuf : a.size ≠ 0 ∧ b.size ≠ 0
         · grind
         grind
+-/
+
 
 def monomioar (n : ℕ) (c : F) : List F :=
   match n with
@@ -476,6 +542,52 @@ lemma rem_quot_aux_size (A B : Array F) (i : ℕ) (hi : A.size - i ≥ B.size) (
   · ⇓⟨xs, letMuts⟩ =>  ⌜letMuts.1.size = A.size⌝
   with grind
 
+lemma rem_quot_aux_prop (A B : Array F) (i : ℕ) (hi : A.size - i ≥ B.size) (hB : B.size > 0) (c : F) :
+    A = add_arrays (mul_ar B ((replicate i 0).push c)) (rem_quot_aux A B i hi hB c) := by
+  ext j hi1 hi2
+  · rw [add_arrays_size,mul_ar_len,rem_quot_aux_size]
+    simp
+    omega
+  · rw [getElem_eq_getD 0,getElem_eq_getD 0]
+    rw [add_arrays_prop,def_mul]
+    by_cases hcas : i ≤ j
+    · have haux : (fun (i_1 : Fin (j + 1)) ↦ B.getD (↑i_1) 0 * ((replicate i 0).push c).getD (j - ↑i_1) 0) =
+        fun (i_1  : Fin (j + 1)) ↦  if (↑i_1 = j - i) then ((B.getD (↑i_1) 0) * c) else 0
+      · ext l
+        rw [getD_replicate_push]
+        simp
+        split_ifs with h1 h2 h3
+        · rfl
+        · omega
+        · omega
+        · rfl
+      rw [haux]
+      simp [Finset.sum_ite]
+      rw [Finset.sum_filter]
+      have haux3 : ∀ (x : Fin (j + 1)), x = ⟨j - i, by omega⟩  ↔ ↑x = j - i
+      · grind
+      simp [← haux3]
+      simp only [← getD_eq_getD_getElem?]
+      by_cases hcas2 : j - i < B.size
+      · rw [rem_quot_aux_val]
+        · ring_nf
+        · omega
+        · omega
+      · rw [rem_quot_aux_eq]
+        · simp [hcas2]
+        · omega
+    · have haux : (fun (i_1 : Fin (j + 1)) ↦ B.getD (↑i_1) 0 * ((replicate i 0).push c).getD (j - ↑i_1) 0) =
+        fun (i_1  : Fin (j + 1)) ↦  0
+      . ext x
+        rw [getD_replicate_push]
+        split_ifs with h1
+        · grind
+        · simp
+      rw [haux]
+      simp only [Finset.sum_const_zero, zero_add]
+      rw [rem_quot_aux_eq']
+      omega
+
 def rem_quot_array (A B : Array F) (hB : B.size > 0) : Array F × Array F := Id.run do
   let sdif := A.size + 1 - B.size
   let mut rem : {Ar : Array F // Ar.size = A.size}:= ⟨A,rfl⟩
@@ -485,6 +597,8 @@ def rem_quot_array (A B : Array F) (hB : B.size > 0) : Array F × Array F := Id.
       let q := rem.1.getD (rem.1.size -1- i) 0 / B.getD (B.size - 1) 0
       rem := ⟨rem_quot_aux rem.1 B (sdif - 1 - i) (by simp_all; grind [rem.2]) hB q, by rw [rem_quot_aux_size,rem.2]⟩
       quot := quot.push q
+    else
+      quot := quot.push 0
   return (rem.1,quot.reverse)
 
 lemma rem_quot_array_zeros (A B : Array F) (hB : B.size > 0) (hB2 : B.getD (B.size -1) 0 ≠ 0) (i : ℕ) (hi : i ≥ B.size) :
@@ -553,6 +667,7 @@ lemma rem_quot_array_zeros (A B : Array F) (hB : B.size > 0) (hB2 : B.getD (B.si
     cases' h_3 with h3 h4
     fconstructor
     · exact h3
+    fconstructor
     · unfold sdif rem_1 at *
       simp_all
       intro hxs k hk
@@ -568,11 +683,100 @@ lemma rem_quot_array_zeros (A B : Array F) (hB : B.size > 0) (hB2 : B.getD (B.si
         · omega
         rw [haux2]
         exact h_2
+    · intro hs
+      simp at h4
+      specialize h4 i ?_
+      · grind
+      simp [rem_1,h4]
   · expose_names
     simp [rem]
-    intro h2 k hk
-    grind
+    fconstructor
+    · intro h2 k hk
+      grind
+    · grind
   · expose_names
+    apply h_1.2.2
+
+lemma rem_quot_array_prop (A B : Array F) (hB : B.size > 0) (hB2 : B.getD (B.size -1) 0 ≠ 0) (hA : A.getD (A.size -1) 0 ≠ 0) (hAB : A.size ≥ B.size):
+    A = add_arrays (mul_ar B (rem_quot_array A B hB).2) (rem_quot_array A B hB).1 := by
+  generalize h : (rem_quot_array A B hB) = res
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ =>
+    ⌜(letMuts.1.size = xs.prefix.length) ∧ (A = add_arrays (mul_ar B ((replicate xs.suffix.length 0) ++ letMuts.1.reverse)) (letMuts).2.1) ∧ ((hl : letMuts.1.size > 0) → letMuts.1[0]'(hl) ≠ 0)⌝
+  with mleave
+  · expose_names
+    simp [quot_2,rem_2,quot_1,rem_1] at *
+    cases' h_3 with h3 h4
+    cases' h4 with h4 h5
+    fconstructor
+    · exact h3
+    fconstructor
+    · ext i hi1 hi2
+      · simp [h4,add_arrays_size,rem_quot_aux_size,mul_ar_len]
+      · have haux := rem_quot_aux_prop (↑b.snd) B (sdif - 1 - cur) (by grind) hB q
+        rw [haux] at h4
+        simp only [h4]
+        rw [getElem_eq_getD 0,getElem_eq_getD 0,add_arrays_prop,add_arrays_prop,add_arrays_prop]
+        rw [def_mul,def_mul,def_mul]
+        simp only [getD_replicate_push,getD_replicate_pop_append,getD_replicate_append]
+        simp only [← add_assoc]
+        rw [@add_right_cancel_iff]
+        rw [<- Finset.sum_add_distrib]
+        simp only [← mul_add]
+        congr
+        ext x
+        congr
+        split_ifs with ha1 ha2 ha3 ha4 ha5 ha6
+        any_goals grind
+    · by_cases hcas : pref = []
+      · simp_all
+        unfold q
+        simp only [div_eq_zero_iff, not_or]
+        simp_all
+        exact h_2
+      · rw [getElem_push]
+        grind
+  · expose_names
+    fconstructor
+    · unfold quot_1
+      simp [h_3.1]
+    fconstructor
+    · simp_all [quot_1,rem_1]
+      congr
+      grind
+    · simp [quot_1]
+      by_cases hcas : b.fst = #[]
+      · simp_all
+        have haux : pref = []
+        · grind
+        simp [haux,sdif] at *
+        have haux2 : cur = (cur :: suff)[0]
+        · simp
+        simp [← h_1] at haux2
+        simp [haux2] at *
+        simp [rem_1] at *
+        apply hA
+        simp only [← getD_eq_getD_getElem?,add_arrays_prop,def_mul,add_arrays_size,mul_ar_len]
+        simp [getD_replicate_zero]
+        grind
+      · grind
+  · expose_names
+    fconstructor
+    · rfl
+    fconstructor
+    · simp_all [sdif,rem,quot]
+      ext i hi1 hi2
+      · simp [add_arrays_size,mul_ar_len]
+        omega
+      · rw [getElem_eq_getD 0,getElem_eq_getD 0,add_arrays_prop,def_mul]
+        simp
+    · simp [quot]
+  · grind
+
+
+
+
 
 
 
