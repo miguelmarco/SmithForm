@@ -130,6 +130,18 @@ lemma clean_zeros_eq (A : Array F) (i : ℕ) : A.getD i 0 = (clean_zeros A).getD
     · unfold clean_zeros
       simp [hA,hcas]
 
+lemma clean_zeros_size_lt' (A : Array F) (n : ℕ) (hn : 0 < n) (h : ∀ i ≥ (n - 1), A.getD i 0 = 0):
+    (clean_zeros A).size < n := by
+  by_contra hcon
+  simp at hcon
+  have haux := clean_zeros_prop A
+  cases' haux with h1 h2
+  · grind
+  · specialize h ((clean_zeros A).size  -1) ?_
+    · omega
+    · apply h2
+      rw [← clean_zeros_eq,h]
+
 @[simp]
 lemma getD_replicate_append (i n : ℕ) (A : Array F) :
     getD ((replicate n 0) ++ A) i 0  = if i < n then 0 else A.getD (i - n) 0 := by
@@ -588,6 +600,18 @@ lemma rem_quot_aux_prop (A B : Array F) (i : ℕ) (hi : A.size - i ≥ B.size) (
       rw [rem_quot_aux_eq']
       omega
 
+
+lemma rem_quot_aux_zero (A B : Array F ) (i : ℕ) (hi : A.size - i ≥ B.size) (hB : B.size > 0) (hB0 : B.getD (B.size -1) 0 ≠ 0) :
+    (rem_quot_aux A B i hi hB ((A.getD (i + B.size -1) 0) / (B.getD (B.size - 1) 0))).getD (B.size -1 + i)  0 = 0  := by
+  rw [rem_quot_aux_val]
+  · simp only [add_tsub_cancel_right]
+    rw [div_mul_comm,div_self,one_mul,sub_eq_zero_of_eq]
+    · congr
+      omega
+    · exact hB0
+  · omega
+  · omega
+
 def rem_quot_array (A B : Array F) (hB : B.size > 0) : Array F × Array F := Id.run do
   let sdif := A.size + 1 - B.size
   let mut rem : {Ar : Array F // Ar.size = A.size}:= ⟨A,rfl⟩
@@ -773,6 +797,19 @@ lemma rem_quot_array_prop (A B : Array F) (hB : B.size > 0) (hB2 : B.getD (B.siz
         simp
     · simp [quot]
   · grind
+
+
+lemma rem_quot_array_zero (A B : Array F) (hB : B.size > 0) (hB2 : B.getD (B.size -1) 0 ≠ 0)  :
+    (rem_quot_array A B hB).1.getD (B.size - 1) 0 = 0 := by
+  generalize h : (rem_quot_array A B hB) = res
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, ⟨quo,⟨rem,hrem⟩⟩⟩ =>
+    ⌜ xs.suffix = [] → (rem).getD (B.size - 1) 0 = 0⌝
+  with mleave
+  any_goals grind  [rem_quot_aux_zero]
+
+
 
 
 

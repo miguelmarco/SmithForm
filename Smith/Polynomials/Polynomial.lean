@@ -611,5 +611,121 @@ instance inst_ring : CommRing (Poly F) where
     simp [monomio,monomioar,Nat.cast]
     grind
 
+instance inst_EuclideanDomain : EuclideanDomain (Poly F) where
+  exists_pair_ne := by
+    use {Ar := #[], hAr := by tauto }
+    use {Ar := #[1], hAr := by simp}
+    simp
+  quotient := fun a b ↦
+    if hb : b.Ar.size = 0 then
+      0
+    else if b.Ar.size > a.Ar.size then
+      0
+    else
+      {Ar := (clean_zeros (rem_quot_array a.Ar b.Ar (by omega)).2), hAr := by grind [clean_zeros_prop]}
+  quotient_zero := by
+    intro a
+    simp [def_zero]
+  remainder := fun a b ↦
+    if hb : b.Ar.size = 0 then
+      a
+    else if b.Ar.size > a.Ar.size then
+      a
+    else
+      {Ar := (clean_zeros (rem_quot_array a.Ar b.Ar (by omega)).1), hAr := by grind [clean_zeros_prop]}
+  quotient_mul_add_remainder_eq := by
+    intro a b
+    simp
+    split_ifs
+    any_goals grind
+    · expose_names
+      have haux := rem_quot_array_prop a.Ar b.Ar (by grind) ?_ ?_ (by omega)
+      · apply eq_poly'
+        intro n
+        nth_rewrite 3 [haux]
+        simp only [def_add,def_mul',← clean_zeros_eq,add_arrays_prop,def_mul]
+      · grind [b.hAr]
+      · grind [a.hAr]
+  r := fun a b ↦ a.Ar.size < b.Ar.size
+  r_wellFounded :=  WellFounded.onFun wellFounded_lt
+  remainder_lt := by
+    intro a b hb
+    split_ifs with h1 h2
+    · simp [def_zero] at hb
+      simp at h1
+      exfalso
+      apply hb
+      ext
+      · simp [h1]
+      · simp [h1]
+    · exact h2
+    · simp
+      apply clean_zeros_size_lt'
+      · omega
+      · intro i hi
+        by_cases hcas : i = b.Ar.size -1
+        · rw [hcas]
+          apply rem_quot_array_zero
+          · grind [b.hAr]
+        · rw [rem_quot_array_zeros]
+          grind [b.hAr]
+          omega
+
+  mul_left_not_lt := by
+    intro a b h
+    by_cases hcas : a = 0
+    · simp [hcas]
+    simp [def_zero] at hcas
+    have hanz : a.Ar ≠ #[]
+    · intro h
+      apply hcas
+      ext
+      all_goals simp [h]
+    have haux : (a * b).Ar = clean_zeros (mul_ar a.Ar b.Ar)
+    · rfl
+    rw [haux]
+    rw [clean_zeros_size,mul_ar_len]
+    · suffices hsuf : b.Ar.size > 0
+      · omega
+      simp [def_zero] at h
+      by_contra hcon
+      apply h
+      simp at hcon
+      ext
+      · simp [hcon]
+      · simp [hcon]
+    · rw [def_mul]
+      have hb : b.Ar.size > 0
+      · simp [def_zero] at h
+        cases b
+        grind
+      have heq : a.Ar.size + b.Ar.size - 1 - 1 - (a.Ar.size - 1) = b.Ar.size - 1
+      · have ha : a.Ar.size > 0
+        · grind
+        omega
+      rw [Finset.sum_eq_single ⟨a.Ar.size -1,by rw [mul_ar_len]; omega⟩ ]
+      · simp [mul_ar_len a.Ar b.Ar]
+        fconstructor
+        · have ha := a.hAr
+          cases' ha with ha ha
+          · tauto
+          · simp at ha
+            exact ha
+        · have hauc2 := b.hAr
+          cases' hauc2 with h1 h2
+          · grind
+          · simp at h2
+            rw [heq]
+            exact h2
+      · intro i hun hiv
+        cases' i with i ival
+        simp_all
+        by_cases hcas : i < a.Ar.size - 1
+        · right
+          rw [mul_ar_len]
+          grind
+        · left
+          grind
+      · simp
 
 end APolynomial
