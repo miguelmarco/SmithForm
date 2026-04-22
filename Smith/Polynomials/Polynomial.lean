@@ -728,4 +728,30 @@ instance inst_EuclideanDomain : EuclideanDomain (Poly F) where
           grind
       · simp
 
+instance inst_DecidableEq : DecidableEq (Poly F) := by
+  intro a b
+  if h : a.Ar = b.Ar then
+    apply isTrue
+    apply eq_poly'
+    simp [h]
+  else
+    apply isFalse
+    grind
+
+variable [ToString F]
+
+instance : ToString (Poly F) where
+  toString := fun P => Id.run do
+    if P.Ar = #[] then
+      return "0"
+    else
+    let mut res := ""
+    for h : i in [:P.Ar.size] do
+      let coef := P.Ar[i]'(Membership.get_elem_helper h rfl)
+      if i > 0 then
+        res := res ++ s!"+{coef}*X^{i}"
+      else
+        res := res ++ s!"{coef}"
+    return res
+
 end APolynomial
