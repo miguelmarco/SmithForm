@@ -329,6 +329,116 @@ lemma mul_add_multiple_row_eq (A : Mat n m R) (B : Mat m l R) (i j : Fin m) (h :
       simp at hx
       simp [hx]
 
+def mul_col (M : Mat n m R) (c : Fin m) (f : R) : Mat n m R := Id.run do
+  let mut res := M
+  for h : k in [:n] do
+    let fk : Fin n := ⟨k,Membership.get_elem_helper h rfl⟩
+    res := Aset res fk c ((Aget M fk c ) * f)
+  return res
+
+def mul_row (M : Mat n m R) (r : Fin n) (f : R) : Mat n m R := Id.run do
+  let mut res := M
+  for h : k in [:m] do
+    let fk : Fin m := ⟨k,Membership.get_elem_helper h rfl⟩
+    res := Aset res r fk ((Aget M r fk ) * f)
+  return res
+
+lemma def_mul_row (M : Mat n m R) (r i: Fin n) (c : Fin m) (f : R) :
+    Aget (mul_row M r f) i c = if i = r then (Aget M i c) * f else (Aget M i c) := by
+  split_ifs with h1
+  · cases h1
+    generalize h : mul_row M r f = res
+    apply Id.of_wp_run_eq h
+    mvcgen invariants
+    · ⇓⟨xs, letMuts⟩ =>
+      ⌜ (forall k, (hi : k ∈ xs.suffix) →  Aget letMuts r ⟨k,(RangeCursor.suffix_in_range _ _ k xs hi).2⟩ = Aget M r ⟨k,(RangeCursor.suffix_in_range _ _ k xs hi).2⟩) ∧ (forall k, (hi : k ∈ xs.prefix) →  Aget letMuts r ⟨k,(RangeCursor.prefix_in_range _ _ k xs hi).2⟩ = Aget M r ⟨k,(RangeCursor.prefix_in_range _ _ k xs hi).2⟩ * f)⌝
+    with mleave
+    · expose_names
+      simp_all
+      cases' h_2 with h2 h3
+      fconstructor
+      · intro k hk
+        simp [res_1,def_Aset]
+        split_ifs with hif
+        · grind
+        · grind
+      · intro k hk
+        simp [res_1,def_Aset]
+        simp [fk]
+        split_ifs with hif
+        cases' hk with hk hk
+        · grind
+        · simp [hif]
+        · apply h3
+          tauto
+    · simp
+    · expose_names
+      apply h_1.2
+      simp
+  · generalize h : mul_row M r f = res
+    apply Id.of_wp_run_eq h
+    mvcgen invariants
+    · ⇓⟨xs, letMuts⟩ =>
+      ⌜Aget letMuts i c = Aget M i c⌝
+    with mleave
+    · expose_names
+      simp [res_1,def_Aset,h1,h_2]
+
+lemma def_mul_col (M : Mat n m R) (r : Fin n) (c i : Fin m) (f : R) :
+    Aget (mul_col M c f) r i = if i = c then (Aget M r i) * f else (Aget M r i) := by
+  split_ifs with h1
+  · cases h1
+    generalize h : mul_col M c f = res
+    apply Id.of_wp_run_eq h
+    mvcgen invariants
+    · ⇓⟨xs, letMuts⟩ =>
+      ⌜ (forall k, (hi : k ∈ xs.suffix) →  Aget letMuts ⟨k,(RangeCursor.suffix_in_range _ _ k xs hi).2⟩ c = Aget M ⟨k,(RangeCursor.suffix_in_range _ _ k xs hi).2⟩ c) ∧  (forall k, (hi : k ∈ xs.prefix) →  Aget letMuts  ⟨k,(RangeCursor.prefix_in_range _ _ k xs hi).2⟩ c = (Aget M ⟨k,(RangeCursor.prefix_in_range _ _ k xs hi).2⟩ c )* f)⌝
+    with mleave
+    · expose_names
+      simp_all
+      cases' h_2 with h2 h3
+      fconstructor
+      · intro k hk
+        simp [res_1,def_Aset]
+        split_ifs with hif
+        · grind
+        · grind
+      · intro k hk
+        simp [res_1,def_Aset]
+        simp [fk]
+        split_ifs with hif
+        cases' hk with hk hk
+        · grind
+        · simp [hif]
+        · apply h3
+          tauto
+    · simp
+    · expose_names
+      apply h_1.2
+      simp
+  · generalize h : mul_col M c f = res
+    apply Id.of_wp_run_eq h
+    mvcgen invariants
+    · ⇓⟨xs, letMuts⟩ =>
+      ⌜Aget letMuts r i = Aget M r i⌝
+    with mleave
+    · expose_names
+      simp [res_1,def_Aset,h1,h_2]
+
+
+
+
+
+lemma  mul_row_col_unit (M : Mat n m R) (N : Mat m l R) (c : Fin m) (f g: R) (hfg : f * g = 1) :
+    (mul_col M c f) * (mul_row N c g) = M * N := by
+  ext i j
+  simp [def_Mat_mul,def_mul_row,def_mul_col]
+  congr
+  ext x
+  split_ifs with h1
+  · grind
+  · rfl
+
 structure LUM (A : Mat n m R) : Type where
   (IL: Mat n n R)
   (IR : Mat m m R)
@@ -413,6 +523,22 @@ def LUM_add_multiple_row (D : LUM A) (i j : Fin n) (h : j ≠ i) (d : R) : LUM A
     nth_rewrite  2 [← neg_neg d]
     rw [mul_add_multiple_row_eq _ _ _ _ h (-d)]
     exact D.hIL
+  hIR := D.hIR
+
+def LUM_multiple_col (D : LUM A) (i : Fin n) (f g : R) (hfg : f * g = 1) : LUM A where
+  IL := mul_row D.IL i g
+  IR := D.IR
+  L := mul_col D.L i f
+  M := mul_row D.M i g
+  R := D.R
+  h := by
+    simp [← D.h]
+    rw [mul_row_col_unit]
+    exact hfg
+  hIL := by
+    simp [← D.hIL]
+    rw [mul_row_col_unit]
+    exact hfg
   hIR := D.hIR
 
 end AMat

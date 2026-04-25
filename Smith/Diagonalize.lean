@@ -138,7 +138,7 @@ lemma diagonalize_prop_rows (D : LUM A) :
 open EuclideanDomain
 
 def transform_diagonal_dvd (D : LUM A) (i j : ℕ) (hin : i < n) (him : i < m) (hjn : j < n)
-  (hjm : j < m) (hij : i ≠ j)(h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) : LUM A :=
+  (hjm : j < m) (hij : i ≠ j) (h : Aget D.M ⟨i, hin⟩ ⟨i, him⟩ ≠ 0) : LUM A :=
   let x := Aget D.M ⟨i,hin⟩ ⟨i,him⟩
   let y := Aget D.M ⟨j,hjn⟩ ⟨j,hjm⟩
   let a := gcdA x y
@@ -544,18 +544,90 @@ lemma fix_diagonal_dvd (D : LUM A) (hd : is_diagonal _ D) :
       omega
     · assumption
 
-def SmithForm (A : Mat n m R) : LUM A := fix_diagonal A (diagonalize A (triv_LUM A))
+def canonicalize_diagonal_aux (D : LUM A) (i : ℕ) (hi1 : i < n) (hi2 : i < m) : LUM A :=
+  let c := Aget D.M ⟨i,hi1⟩ ⟨i,hi2⟩
+  let r := EuclideanDomain.remainder 1 c
+  if hc : r = 0 then
+    LUM_multiple_col A D  ⟨i,hi1⟩ c (EuclideanDomain.quotient 1 c)
+      (by have haux := EuclideanDomain.quotient_mul_add_remainder_eq 1 c;
+          simp [r,hc] at haux;
+          exact haux)
+  else
+    D
+
+lemma canonicalize_diagonal_aux_diagonal (D : LUM A) (i : ℕ) (hi1 : i < n) (hi2 : i < m)
+  (hD : is_diagonal _ D) :
+    is_diagonal _ (canonicalize_diagonal_aux _ D i hi1 hi2) := by
+  intro r c hrc
+  specialize hD r c hrc
+  rw [canonicalize_diagonal_aux]
+  split_ifs with h1
+  · simp [LUM_multiple_col,def_mul_row,hD]
+  · exact hD
+
+def canonicalize_diagonal (D : LUM A) : LUM A := Id.run do
+  let mut result := D
+  let mi := min n m
+  for hi : i in [0:mi - 1] do
+    result := canonicalize_diagonal_aux _ result i
+      (by simp [mi] at hi; omega) (by simp [mi] at hi; omega)
+  return result
+
+lemma canonicalize_diagonal_diagonal (D : LUM A) (hD : is_diagonal _ D) :
+    is_diagonal _ (canonicalize_diagonal _ D) := by
+  generalize h : canonicalize_diagonal A D = res
+  apply Id.of_wp_run_eq h
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ => ⌜is_diagonal A letMuts⌝
+  with mleave
+  · apply canonicalize_diagonal_aux_diagonal
+    assumption
+
+lemma canonicalize_diagonal_dvd (D : LUM A) (i j : ℕ) (hi : i < j) (hjn : j < n) (hjm : j < m)
+  (h : Aget D.M ⟨i,by omega⟩ ⟨i,by omega⟩ ∣ Aget D.M ⟨j,hjn⟩ ⟨j,hjm⟩) :
+    Aget (canonicalize_diagonal _ D).M ⟨i,by omega⟩ ⟨i,by omega⟩ ∣ Aget (canonicalize_diagonal _ D).M ⟨j,hjn⟩ ⟨j,hjm⟩ := by
+  generalize hg : canonicalize_diagonal _ D = res
+  apply Id.of_wp_run_eq hg
+  mvcgen invariants
+  · ⇓⟨xs, letMuts⟩ => ⌜Aget letMuts.M ⟨i, by omega⟩ ⟨i, by omega⟩ ∣ Aget letMuts.M ⟨j, hjn⟩ ⟨j, hjm⟩⌝
+  with mleave
+  · expose_names
+    simp [canonicalize_diagonal_aux,LUM_multiple_col]
+    split_ifs with h1
+    · have haux := EuclideanDomain.quotient_mul_add_remainder_eq 1 (Aget b.M ⟨cur, by grind⟩ ⟨cur,by grind⟩)
+      simp [h1] at haux
+      simp [def_mul_row]
+      split_ifs with h2 h3 h4
+      · cases h2
+        cases h3
+        omega
+      · cases h2
+        rw [haux]
+        simp
+      · cases h4
+        choose m hm using h_2
+        rw [hm]
+        use  m * EuclideanDomain.quotient 1 (Aget b.M ⟨i, by omega⟩ ⟨i, by omega⟩ * m)
+        ring
+      · exact h_2
+    · exact h_2
+
+def SmithForm (A : Mat n m R) : LUM A :=
+    canonicalize_diagonal A (fix_diagonal A (diagonalize A (triv_LUM A)))
 
 theorem SmithFormDiagonal (A : Mat n m R) : is_diagonal _ (SmithForm A) := by
   unfold SmithForm
+  apply canonicalize_diagonal_diagonal
   apply fix_diagonal_diagonal
   exact diagonalize_prop_rows A (triv_LUM A)
 
 theorem SmithFormdvd (A : Mat n m R) (i j : ℕ) (hi : i < j) (hjn : j < n) (hjm : j < m) :
     Aget (SmithForm A).M ⟨i,by omega⟩ ⟨i,by omega⟩ ∣ Aget (SmithForm A).M ⟨j, hjn⟩ ⟨j, hjm⟩ := by
   unfold SmithForm
-  apply fix_diagonal_dvd
-  · apply diagonalize_prop_rows
+  apply canonicalize_diagonal_dvd
+  · apply fix_diagonal_dvd
+    · apply diagonalize_prop_rows
+    · exact hi
   · exact hi
 
 theorem SmithForm_eq (A : Mat n m R) : (SmithForm A).L * (SmithForm A).M * (SmithForm A).R = A :=
