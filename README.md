@@ -26,7 +26,7 @@ theorem SmithForm_IR (A : Mat n m R) : (SmithForm A).IR * (SmithForm A).R = from
 
 Moreover, there are also the following theorems proving that the resulting `M` is indeed the Smith form of `A`:
 
-```
+```lean4
 theorem SmithFormDiagonal (A : Mat n m R) : is_diagonal _ (SmithForm A) 
 
 theorem SmithFormdvd (A : Mat n m R) (i j : ℕ) (hi : i < j) (hjn : j < n) (hjm : j < m) :
