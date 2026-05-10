@@ -1,8 +1,8 @@
 import Mathlib.Tactic
 import Std.Do
 
-variable (i m k cur: ℕ) (xs : [i:m].toList.Cursor)
-variable (pref suff : List ℕ )
+variable (i m k cur : ℕ) (xs : [i:m].toList.Cursor)
+variable (pref suff : List ℕ)
 
 namespace RangeCursor
 

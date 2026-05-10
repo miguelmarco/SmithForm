@@ -26,3 +26,8 @@ moreCcArgs = ["-O3"]
 name = "SmithFormQ"
 root = "SmithFormQ"
 moreCcArgs = ["-O3"]
+
+[[lean_exe]]
+name = "SmithFormP"
+root = "SmithFormP"
+moreCcArgs = ["-O3"]

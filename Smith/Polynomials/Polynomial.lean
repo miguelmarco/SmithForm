@@ -740,7 +740,7 @@ instance inst_DecidableEq : DecidableEq (Poly F) := by
 
 variable [ToString F]
 
-instance : ToString (Poly F) where
+instance PolyToString : ToString (Poly F) where
   toString := fun P => Id.run do
     if P.Ar = #[] then
       return "0"

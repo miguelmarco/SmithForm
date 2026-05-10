@@ -116,3 +116,56 @@ will output the result
 4+-1*X^1 3/35+0*X^1+2/35*X^2 
 ```
 
+## Ring of polynomials with coefficients ove a prime field.
+
+Running `lake build SmithFormP` will produce an executable called `SmithFormP` in the `.lake/build/bin` directory.
+
+This executable reads from stdin the following structure, separated by newlines
+
+- `p` the modulus: a prime oisitive integer.
+- `n` the number of rows
+- `m` the number of columns
+- One entry of the matrix in each line. The polynomial is written as nonnegative integers separated by white spaces. They correspond to the coefficients of the polynomial in increasing degree. (That is, `3 1` will correspond to `3 + 1*x`.)
+
+The binary will output the corresponding matrices as before.
+
+For example, the input
+
+```
+7
+2
+3
+3 6
+4 1
+0
+0 1
+0 0 1 2
+1 2 0 0 1
+```
+ 
+that corresponds to the `2 x 3` matrix with coefficients in the ield of 7 elements.
+
+```
+[3+6*x  4+x 0                  ]
+[x      1*x^2+2*x^3   1+2*x+x^4]
+```
+will output the result
+
+```
+5 5 
+0+2*X^1 1+2*X^1 
+
+3+6*X^1 6 
+0+1*X^1 1 
+
+1 0 0 
+0 2+4*X^1 0 
+
+1 6+5*X^1+5*X^2+3*X^3 5+3*X^1+0*X^2+0*X^3+5*X^4 
+0 0+4*X^1+4*X^2+1*X^3 4+1*X^1+0*X^2+0*X^3+4*X^4 
+0 5+0*X^1+1*X^2 3+5*X^1+5*X^2+4*X^3 
+
+1 0+5*X^1+5*X^2+4*X^3 3+6*X^1+0*X^2+0*X^3+3*X^4 
+0 3+5*X^1+5*X^2+4*X^3 3+6*X^1+0*X^2+0*X^3+3*X^4 
+0 2+0*X^1+6*X^2 0+4*X^1+4*X^2+1*X^3 
+```
